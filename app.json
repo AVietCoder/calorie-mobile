@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Calorie AI",
+    "slug": "calorie-ai-mobile",
+    "icon": "./assets/icon.png",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F7F4"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F7F4"
+      }
+    },
+    "web": {},
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
