@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet,
-  Text, TextInput, View, Image, Animated, ScrollView, Modal
+  Text, TextInput, View, Image, Animated, ScrollView, Modal, Alert, Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { ChatAPI } from '../api/client';
 import { useToast } from '../components/Toast';
 import { colors, radius } from '../theme/colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImageManipulator from 'expo-image-manipulator'; // cần cài thêm
 
 const cleanDisplayContent = (content) => {
   if (!content) return "";
@@ -259,21 +260,82 @@ export default function ChatScreen() {
     );
   }
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      toast.show('Cần quyền truy cập thư viện ảnh', 'error');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      setPendingImage(result.assets[0].uri);
-      setInput('Phân tích hình ảnh này');
-    }
+  // Helper: nén ảnh để upload nhẹ, tránh 413 trên Vercel
+const compressImage = async (uri) => {
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1280 } }],          // chiều rộng tối đa 1280
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return result.uri;
+  } catch {
+    return uri; // fallback nếu lỗi
+  }
+};
+
+// Helper: xin quyền + xử lý từ chối tử tế
+const ensurePermission = async (kind /* 'library' | 'camera' */) => {
+  const ask = kind === 'camera'
+    ? ImagePicker.requestCameraPermissionsAsync
+    : ImagePicker.requestMediaLibraryPermissionsAsync;
+  const get = kind === 'camera'
+    ? ImagePicker.getCameraPermissionsAsync
+    : ImagePicker.getMediaLibraryPermissionsAsync;
+
+  let perm = await get();
+  if (perm.status === 'granted') return true;
+  if (perm.canAskAgain) perm = await ask();
+  if (perm.status === 'granted') return true;
+
+  // Bị từ chối vĩnh viễn → mời mở Cài đặt
+  Alert.alert(
+    'Cần quyền truy cập',
+    kind === 'camera'
+      ? 'Calorie AI cần quyền dùng camera để chụp món ăn.'
+      : 'Calorie AI cần quyền truy cập ảnh để bạn chọn món ăn cần phân tích.',
+    [
+      { text: 'Để sau', style: 'cancel' },
+      { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+    ],
+  );
+  return false;
+};
+
+const launchPicker = async (source) => {
+  const ok = await ensurePermission(source === 'camera' ? 'camera' : 'library');
+  if (!ok) return;
+
+  const opts = {
+    mediaTypes: ImagePicker.MediaType ? ['images'] : ImagePicker.MediaTypeOptions.Images,
+    quality: 0.85,
+    allowsEditing: false,
   };
+
+  const result = source === 'camera'
+    ? await ImagePicker.launchCameraAsync(opts)
+    : await ImagePicker.launchImageLibraryAsync(opts);
+
+  if (result.canceled || !result.assets?.[0]) return;
+  const compressed = await compressImage(result.assets[0].uri);
+  setPendingImage(compressed);
+  setInput((v) => v || 'Phân tích hình ảnh này');
+};
+
+// Thay thế hàm pickImage cũ
+const pickImage = () => {
+  Alert.alert(
+    'Thêm ảnh món ăn',
+    'Bạn muốn lấy ảnh từ đâu?',
+    [
+      { text: 'Chụp ảnh', onPress: () => launchPicker('camera') },
+      { text: 'Chọn từ thư viện', onPress: () => launchPicker('library') },
+      { text: 'Huỷ', style: 'cancel' },
+    ],
+    { cancelable: true },
+  );
+};
+
 
   const extractData = (text = '') => {
     const match = String(text).match(/<data>([\s\S]*?)<\/data>/i);

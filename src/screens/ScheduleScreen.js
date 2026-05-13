@@ -41,44 +41,68 @@ export default function ScheduleScreen() {
     return Object.values(grouped).sort((a, b) => a.day - b.day);
   };
 
-  const load = async () => {
-    try {
-      const res = await ScheduleAPI.getPlan();
-      // Ưu tiên lấy từ newPlan hoặc chính res nếu nó là mảng
-      const rawData = res?.newPlan || (Array.isArray(res) ? res : []);
-      setPlan(groupPlanByDay(rawData));
-    } catch (err) {
-      console.error(err);
-      toast.show('Không thể tải thực đơn', 'error');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const load = async ({ silent = false } = {}) => {
+  if (!silent) setLoading(true);
+  try {
+    // 1) Lấy plan có sẵn (không tốn AI)
+    const res = await ScheduleAPI.getPlan();
+    let rawData = res?.newPlan || (Array.isArray(res) ? res : []);
+
+    // 2) Nếu DB chưa có plan nào → tự generate lần đầu (giống hành vi web)
+    if (!Array.isArray(rawData) || rawData.length === 0) {
+      setGenerating(true);
+      try {
+        const gen = await ScheduleAPI.generate(); // body {} → backend quyết định
+        rawData = gen?.newPlan || [];
+        if (rawData.length) toast.show('Đã tạo thực đơn cho bạn', 'success');
+      } finally {
+        setGenerating(false);
+      }
     }
-  };
+
+    setPlan(groupPlanByDay(rawData));
+  } catch (err) {
+    console.error('[ScheduleScreen.load]', err);
+    toast.show(err.message || 'Không thể tải thực đơn', 'error');
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
+
 
   useEffect(() => {
     if (!checking) load();
   }, [checking]);
 
   const regenerate = async () => {
-    setGenerating(true);
-    try {
-      const res = await ScheduleAPI.generate();
-      const rawData = res?.newPlan || [];
+  setGenerating(true);
+  try {
+    const res = await ScheduleAPI.generate(); // body rỗng → backend gen mới nếu đủ điều kiện
+    const rawData = res?.newPlan || [];
+    if (rawData.length === 0) {
+      toast.show('Plan tuần này vẫn còn hiệu lực, chưa cần tạo mới', 'info');
+    } else {
       setPlan(groupPlanByDay(rawData));
-      toast.show('Đã tạo kế hoạch mới', 'success');
-    } catch (e) {
-      toast.show(e.message || 'Lỗi tạo kế hoạch', 'error');
-    } finally {
-      setGenerating(false);
+      toast.show(res?.reply || 'Đã tạo kế hoạch mới', 'success');
     }
-  };
+  } catch (e) {
+    toast.show(e.message || 'Lỗi tạo kế hoạch', 'error');
+  } finally {
+    setGenerating(false);
+  }
+};
 
-  if (loading || checking) return (
-    <SafeAreaView style={styles.centerView}>
-      <ActivityIndicator color={colors.primary} size="large" />
-    </SafeAreaView>
-  );
+
+ if (loading || checking) return (
+  <SafeAreaView style={styles.centerView}>
+    <ActivityIndicator color={colors.primary} size="large" />
+    <Text style={{ marginTop: 12, color: colors.textSub }}>
+      {generating ? 'AI đang lên thực đơn 7 ngày cho bạn…' : 'Đang tải…'}
+    </Text>
+  </SafeAreaView>
+);
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

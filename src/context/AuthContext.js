@@ -1,5 +1,8 @@
+// src/context/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { AuthAPI, setToken, setUserId, getToken, getUserId, clearAuth } from '../api/client';
+import {
+  AuthAPI, setToken, setUserId, getToken, getUserId, clearAuth, setOnAuthError,
+} from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +11,7 @@ export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Bootstrap session từ AsyncStorage
   useEffect(() => {
     (async () => {
       const t = await getToken();
@@ -20,8 +24,17 @@ export function AuthProvider({ children }) {
     })();
   }, []);
 
-  const login = useCallback(async (username, password) => {
-    const result = await AuthAPI.login(username, password);
+  // Đăng ký auto-logout khi apiFetch nhận 401/403
+  useEffect(() => {
+    setOnAuthError(() => {
+      setTokenState(null);
+      setUser(null);
+    });
+    return () => setOnAuthError(null);
+  }, []);
+
+  const login = useCallback(async (emailOrUsername, password) => {
+    const result = await AuthAPI.login(emailOrUsername, password);
     if (result?.token) {
       await setToken(result.token);
       if (result.user?.id) await setUserId(result.user.id);
@@ -31,21 +44,11 @@ export function AuthProvider({ children }) {
     return result;
   }, []);
 
-  const register = useCallback(async (payload) => {
-    return AuthAPI.register(payload);
-  }, []);
+  const register = useCallback(async (payload) => AuthAPI.register(payload), []);
 
-  /**
-   * Logout: clear AsyncStorage + reset state.
-   * RootNavigator tự switch sang AuthNavigator khi token = null.
-   * Không cần navigation.reset() vì navigator dựa hoàn toàn vào `token`.
-   */
   const logout = useCallback(async () => {
-    try {
-      await clearAuth();
-    } catch (e) {
-      // ignore
-    }
+    try { await AuthAPI.logout(); } catch {}
+    try { await clearAuth(); } catch {}
     setTokenState(null);
     setUser(null);
   }, []);
