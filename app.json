@@ -2,25 +2,42 @@
   "expo": {
     "name": "Calorie AI",
     "slug": "calorie-ai-mobile",
-    "icon": "./assets/icon.png",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/logo.png",
     "splash": {
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#F4F7F4"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emmalt.calorieaimobile"
     },
     "android": {
+      "package": "com.emmalt.calorieaimobile",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#F4F7F4"
       }
     },
     "web": {},
     "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép ứng dụng truy cập ảnh để phân tích món ăn.",
+          "cameraPermission": "Cho phép ứng dụng dùng camera để chụp món ăn."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "968eb5f5-09ac-412b-bacf-9aa943c8246a"
+      }
+    }
   }
 }
