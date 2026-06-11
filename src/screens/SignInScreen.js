@@ -6,25 +6,28 @@ import { Button, Field } from '../components/UI';
 import { colors, radius, spacing } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { useI18n } from '../i18n';
+import { LangSwitch } from '../components/HeaderWidgets';
 
 export default function SignInScreen({ navigation }) {
   const { login } = useAuth();
   const toast = useToast();
+  const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async () => {
     if (!username || !password) {
-      toast.show('Vui lòng nhập đủ thông tin', 'warning');
+      toast.show(t('m.fill_all', 'Vui lòng nhập đủ thông tin'), 'warning');
       return;
     }
     setLoading(true);
     try {
       await login(username.trim(), password);
-      toast.show('Đăng nhập thành công!', 'success');
+      toast.show(t('m.login_ok', 'Đăng nhập thành công!'), 'success');
     } catch (e) {
-      toast.show(e.message || 'Đăng nhập thất bại', 'error');
+      toast.show(e.message || t('m.login_fail', 'Đăng nhập thất bại'), 'error');
     } finally {
       setLoading(false);
     }
@@ -34,26 +37,27 @@ export default function SignInScreen({ navigation }) {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[colors.primarySoft, colors.bg]} style={styles.hero}>
+          <View style={{ position: 'absolute', top: 50, right: 16 }}><LangSwitch /></View>
           <View style={styles.logoBadge}>
             <Ionicons name="leaf" size={28} color={colors.primary} />
           </View>
           <Text style={styles.brand}>Calorie AI</Text>
-          <Text style={styles.welcome}>Chào mừng trở lại 👋</Text>
-          <Text style={styles.sub}>Tiếp tục theo dõi sức khỏe của bạn</Text>
+          <Text style={styles.welcome}>{t('m.welcome_back', 'Chào mừng trở lại 👋')}</Text>
+          <Text style={styles.sub}>{t('auth.signin_sub', 'Tiếp tục theo dõi sức khỏe của bạn')}</Text>
         </LinearGradient>
 
         <View style={styles.card}>
-          <Field label="Tên đăng nhập" placeholder="Nhập username" value={username}
+          <Field label={t('auth.username', 'Tên đăng nhập')} placeholder={t('auth.username_ph_signin', 'Nhập username')} value={username}
             onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
-          <Field label="Mật khẩu" placeholder="••••••••" value={password}
+          <Field label={t('auth.password', 'Mật khẩu')} placeholder="••••••••" value={password}
             onChangeText={setPassword} secureTextEntry />
 
-          <Button title="Đăng nhập" onPress={onSubmit} loading={loading} style={{ marginTop: 8 }} />
+          <Button title={t('auth.signin_btn', 'Đăng nhập')} onPress={onSubmit} loading={loading} style={{ marginTop: 8 }} />
 
           <View style={styles.footer}>
-            <Text style={{ color: colors.textSub }}>Chưa có tài khoản? </Text>
+            <Text style={{ color: colors.textSub }}>{t('auth.no_account', 'Chưa có tài khoản?')} </Text>
             <Pressable onPress={() => navigation.navigate('SignUp')}>
-              <Text style={styles.link}>Đăng ký ngay</Text>
+              <Text style={styles.link}>{t('auth.signup_now', 'Đăng ký ngay')}</Text>
             </Pressable>
           </View>
         </View>

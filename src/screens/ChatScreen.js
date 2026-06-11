@@ -8,6 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ChatAPI } from '../api/client';
 import { useToast } from '../components/Toast';
+import { useI18n } from '../i18n';
 import { colors, radius } from '../theme/colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator'; // cần cài thêm
@@ -182,7 +183,7 @@ function NutritionSidebar({ data, imageUri, description, onClose }) {
       <View style={styles.calorieBox}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Ionicons name="flame" size={13} color="#C97D3A" />
-          <Text style={styles.calorieTitle}>TỔNG NĂNG LƯỢNG</Text>
+          <Text style={styles.calorieTitle}>{t('chat.total_energy', 'TỔNG NĂNG LƯỢNG').toUpperCase()}</Text>
         </View>
         <Text style={styles.calorieValue}>{data.calories || 0} kcal</Text>
       </View>
@@ -204,7 +205,7 @@ function NutritionSidebar({ data, imageUri, description, onClose }) {
 
       <Pressable onPress={onClose} style={styles.sidebarClose}>
         <Ionicons name="close" size={16} color={colors.textSub} />
-        <Text style={styles.sidebarCloseText}>Ẩn thông tin</Text>
+        <Text style={styles.sidebarCloseText}>{t('m.hide_info', 'Ẩn thông tin')}</Text>
       </Pressable>
     </FadeIn>
   );
@@ -213,14 +214,25 @@ function NutritionSidebar({ data, imageUri, description, onClose }) {
 /* ─── Main Screen ─────────────────────────────────────────── */
 import { useAuthGuard } from '../hooks/useAuthGuard';
 
-export default function ChatScreen() {
+export default function ChatScreen({ navigation, route }) {
   const { checking } = useAuthGuard();
+  const { t } = useI18n();
 
   const toast = useToast();
   const [messages, setMessages] = useState([
-    { id: 'sys-1', role: 'assistant', text: 'Chào bạn! Hãy gửi tin nhắn hoặc ảnh món ăn, tôi sẽ phân tích giúp bạn.' },
+    { id: 'sys-1', role: 'assistant', text: t('m.greeting', 'Chào bạn! Hãy gửi tin nhắn hoặc ảnh món ăn, tôi sẽ phân tích giúp bạn.') },
   ]);
   const [input, setInput] = useState('');
+
+  // Nhận "prefill" khi điều hướng từ màn Kế hoạch ("Hỏi HLV AI")
+  useEffect(() => {
+    const pf = route?.params?.prefill;
+    if (pf) {
+      setInput(pf);
+      navigation?.setParams?.({ prefill: undefined });
+    }
+  }, [route?.params?.prefill]); // eslint-disable-line
+
   const [sending, setSending] = useState(false);
   const [pendingImage, setPendingImage] = useState(null);
   const [nutritionData, setNutritionData] = useState(null);
@@ -255,7 +267,7 @@ export default function ChatScreen() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={{ marginTop: 12, color: colors.textSub }}>Đang xác thực...</Text>
+        <Text style={{ marginTop: 12, color: colors.textSub }}>{t('m.auth_checking', 'Đang xác thực...')}</Text>
       </SafeAreaView>
     );
   }
@@ -378,7 +390,7 @@ const pickImage = () => {
         setMessages(s => [...s, { id: `meal-${Date.now()}`, type: 'meal_selection' }]);
       }
     } catch (e) {
-      toast.show(e.message || 'Lỗi gửi tin', 'error');
+      toast.show(e.message || t('m.send_err', 'Lỗi gửi tin'), 'error');
     } finally {
       setSending(false);
       scrollToEnd();
@@ -395,7 +407,7 @@ const pickImage = () => {
       const reply = res?.reply || res?.message || 'Đã ghi lại bữa ăn!';
       setMessages(s => [...s, { id: `a-mc-${Date.now()}`, role: 'assistant', text: cleanReply(reply) }]);
     } catch (e) {
-      toast.show(e.message || 'Lỗi cập nhật', 'error');
+      toast.show(e.message || t('m.update_err', 'Lỗi cập nhật'), 'error');
       setMessages(s => [...s, { id: `a-mc-${Date.now()}`, role: 'assistant', text: 'Đã ghi lại bữa ăn của bạn!' }]);
     } finally {
       setSending(false);
@@ -441,7 +453,7 @@ const pickImage = () => {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.headerTitle}>Calorie AI</Text>
-        <Text style={styles.headerSub}>● Đang trực tuyến</Text>
+        <Text style={styles.headerSub}>{t('m.online', '● Đang trực tuyến')}</Text>
       </View>
     </View>
 
@@ -487,7 +499,7 @@ const pickImage = () => {
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingBox}>
               <TypingDots />
-              <Text style={styles.loadingText}>Đang tải lịch sử trò chuyện...</Text>
+              <Text style={styles.loadingText}>{t('common.loading', 'Đang tải lịch sử trò chuyện...')}</Text>
             </View>
           </View>
         )}
@@ -504,7 +516,7 @@ const pickImage = () => {
         {pendingImage && (
           <View style={styles.previewWrap}>
             <Image source={{ uri: pendingImage }} style={styles.previewImg} resizeMode="cover" />
-            <Text style={styles.previewLabel}>Ảnh sẵn sàng phân tích</Text>
+            <Text style={styles.previewLabel}>{t('m.img_ready', 'Ảnh sẵn sàng phân tích')}</Text>
             <Pressable onPress={() => { setPendingImage(null); setInput(''); }}>
               <Ionicons name="close-circle" size={22} color={colors.primary} />
             </Pressable>
@@ -518,7 +530,7 @@ const pickImage = () => {
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder="Nhập món ăn hoặc câu hỏi…"
+            placeholder={t('m.chat_ph', 'Nhập món ăn hoặc câu hỏi…')}
             placeholderTextColor={colors.muted}
             style={styles.input}
             multiline

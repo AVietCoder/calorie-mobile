@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
+import { useI18n } from '../i18n';
 
 import SignInScreen from '../screens/SignInScreen';
 import SignUpScreen from '../screens/SignUpScreen';
@@ -31,7 +32,8 @@ function AuthNavigator() {
 function MainTabs() {
   // Lấy chiều rộng màn hình hiện tại
   const { width } = useWindowDimensions();
-  
+  const { t } = useI18n();
+
   // Kiểm tra nếu chiều rộng bé hơn 380 thì coi là màn hình hẹp
   const isCompact = width < 400;
 
@@ -71,11 +73,11 @@ function MainTabs() {
         },
       })}
     >
-      <Tabs.Screen name="Diet" component={DietScreen} options={{ title: 'Dinh dưỡng' }} />
-      <Tabs.Screen name="Chat" component={ChatScreen} options={{ title: 'Hỏi đáp' }} />
-      <Tabs.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Kế hoạch' }} />
-      <Tabs.Screen name="Guide" component={GuideScreen} options={{ title: 'Cẩm nang' }} />
-      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: 'Hồ sơ' }} />
+      <Tabs.Screen name="Diet" component={DietScreen} options={{ title: t('m.tab_diet', 'Dinh dưỡng') }} />
+      <Tabs.Screen name="Chat" component={ChatScreen} options={{ title: t('m.tab_chat', 'Hỏi đáp') }} />
+      <Tabs.Screen name="Schedule" component={ScheduleScreen} options={{ title: t('m.tab_plan', 'Kế hoạch') }} />
+      <Tabs.Screen name="Guide" component={GuideScreen} options={{ title: t('m.tab_guide', 'Cẩm nang') }} />
+      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: t('m.tab_profile', 'Hồ sơ') }} />
     </Tabs.Navigator>
   );
 }

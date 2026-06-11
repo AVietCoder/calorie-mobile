@@ -105,6 +105,10 @@ export const AuthAPI = {
       .catch(() => null), // server lỗi vẫn cho client logout
 };
 
+export const StatusAPI = {
+  get: () => apiFetch('/status'),
+};
+
 export const ChatAPI = {
   send: (message) => {
     const fd = new FormData();
@@ -147,7 +151,12 @@ export const ChatAPI = {
   },
 };
 
-export const DietAPI = { details: () => apiFetch('/diet-details') };
+// /diet-info trả { success, data:{ calories, bmr, tdee, macros:{protein,fat,carbs}, profile } }
+export const DietAPI = {
+  info: () => apiFetch('/diet-info'),
+  // Giữ tương thích ngược: details() cũng gọi /diet-info
+  details: () => apiFetch('/diet-info'),
+};
 
 export const ScheduleAPI = {
   // Web /api/coach-dynamic chỉ nhận POST. isQueryOnly=true để chỉ đọc, không gen mới.
@@ -157,8 +166,36 @@ export const ScheduleAPI = {
   }),
   generate: (payload) =>
     apiFetch('/coach-dynamic', { method: 'POST', body: JSON.stringify(payload || {}) }),
+  // Đổi món -> backend tính lại dinh dưỡng món đó & cân đối tuần
+  updatePlan: (modifiedMeals) =>
+    apiFetch('/coach-dynamic', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update_plan', modifiedMeals }),
+    }),
+  // Ước tính dinh dưỡng 1 món lẻ (dùng cho "Thêm món ngoài thực đơn")
+  estimateFood: (food, meal = '') =>
+    apiFetch('/coach-dynamic', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'estimate_food', food, meal }),
+    }),
   cached: () => getCache(PLAN_CACHE_KEY),
   setCached: (plan) => setCache(PLAN_CACHE_KEY, plan),
+};
+
+// Phân tích ảnh món ăn (dùng cho "Thêm món ngoài thực đơn" qua ảnh)
+export const FoodAPI = {
+  analyzePhoto: async (imageUri, note = '') => {
+    const fd = new FormData();
+    if (note) fd.append('note', note);
+    if (Platform.OS === 'web') {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      fd.append('image', blob, 'photo.jpg');
+    } else {
+      fd.append('image', { uri: imageUri, name: 'photo.jpg', type: 'image/jpeg' });
+    }
+    return apiFetch('/analyze-food', { method: 'POST', body: fd });
+  },
 };
 
 export const SetupAPI = {

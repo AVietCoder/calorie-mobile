@@ -5,63 +5,52 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, radius } from '../theme/colors';
 import { useAuthGuard } from '../hooks/useAuthGuard';
-
-const SECTIONS = [
-  {
-    id: 'start', icon: 'rocket', title: 'Bắt đầu',
-    body: 'Đăng ký tài khoản → Hoàn tất Setup (cân nặng, chiều cao, mục tiêu) → Vào tab Diet để xem chỉ số.',
-  },
-  {
-    id: 'diet', icon: 'pie-chart', title: 'Tab Diet — Phân tích',
-    body: 'Xem TDEE, BMR, tỷ lệ Protein/Carbs/Fat, tiến độ cân nặng 7 ngày, biểu đồ calo theo từng ngày trong tuần.',
-  },
-  {
-    id: 'chat', icon: 'chatbubbles', title: 'Tab Chat — Trợ lý AI',
-    body: 'Mô tả món ăn bạn vừa ăn (vd: "trưa nay ăn 1 tô phở bò") để AI ước lượng calo và macro tự động.',
-  },
-  {
-    id: 'schedule', icon: 'calendar', title: 'Tab Schedule — Kế hoạch tuần',
-    body: 'AI Coach gợi ý thực đơn 7 ngày dựa trên mục tiêu của bạn. Bấm "Tạo mới" để regenerate.',
-  },
-  {
-    id: 'tips', icon: 'bulb', title: 'Mẹo dùng hiệu quả',
-    body: 'Nhập món ăn ngay sau khi ăn, kéo xuống để refresh dữ liệu, đăng nhập lại nếu token hết hạn.',
-  },
-];
-
-const FAQS = [
-  { q: 'Tôi có cần kết nối API riêng không?', a: 'App tự động dùng URL prod (Vercel) khi build production, dùng localhost khi dev.' },
-  { q: 'Token đăng nhập lưu ở đâu?', a: 'AsyncStorage trên thiết bị, tự khôi phục khi mở lại app.' },
-  { q: 'Làm sao reset dữ liệu?', a: 'Vào Profile → Đăng xuất, sau đó đăng nhập lại.' },
-];
+import { useI18n } from '../i18n';
+import { LangSwitch } from '../components/HeaderWidgets';
 
 export default function GuideScreen() {
   const { checking } = useAuthGuard();
-
-
+  const { t } = useI18n();
   const [open, setOpen] = useState(null);
-    if (checking) {
+
+  if (checking) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={{ marginTop: 12, color: colors.textSub }}>Đang xác thực...</Text>
+        <Text style={{ marginTop: 12, color: colors.textSub }}>{t('m.auth_checking', 'Đang xác thực...')}</Text>
       </SafeAreaView>
     );
   }
 
+  const SECTIONS = [
+    { id: 'start', icon: 'rocket', title: t('guide.toc_start', 'Bắt đầu'), body: t('m.g_start_b', '') },
+    { id: 'diet', icon: 'pie-chart', title: t('guide.toc_dashboard', 'Dashboard Diet'), body: t('m.g_diet_b', '') },
+    { id: 'chat', icon: 'chatbubbles', title: t('guide.toc_chat', 'Trò chuyện AI'), body: t('m.g_chat_b', '') },
+    { id: 'plan', icon: 'calendar', title: t('guide.toc_plan', 'Lịch 7 ngày'), body: t('m.g_plan_b', '') },
+    { id: 'rem', icon: 'notifications', title: t('m.g_rem_t', 'Nhắc nhở'), body: t('m.g_rem_b', '') },
+    { id: 'tips', icon: 'bulb', title: t('guide.toc_tips', 'Mẹo & Lưu ý'), body: t('m.g_tips_b', '') },
+  ];
+
+  const FAQS = [
+    { q: t('m.faq1_q', ''), a: t('m.faq1_a', '') },
+    { q: t('m.faq2_q', ''), a: t('m.faq2_a', '') },
+    { q: t('m.faq3_q', ''), a: t('m.faq3_a', '') },
+  ];
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 14 }}>
-        <View>
-          <Text style={styles.h1}>Hướng dẫn sử dụng</Text>
-          <Text style={styles.sub}>Mọi thứ bạn cần biết để dùng Calorie AI hiệu quả</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h1}>{t('m.guide_title', 'Hướng dẫn sử dụng')}</Text>
+            <Text style={styles.sub}>{t('m.guide_sub', 'Mọi thứ bạn cần biết để dùng Calorie AI hiệu quả')}</Text>
+          </View>
+          <LangSwitch />
         </View>
 
         {SECTIONS.map((s) => (
           <View key={s.id} style={styles.card}>
-            <View style={styles.iconBox}>
-              <Ionicons name={s.icon} size={22} color={colors.primary} />
-            </View>
+            <View style={styles.iconBox}><Ionicons name={s.icon} size={22} color={colors.primary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{s.title}</Text>
               <Text style={styles.cardBody}>{s.body}</Text>
@@ -69,7 +58,7 @@ export default function GuideScreen() {
           </View>
         ))}
 
-        <Text style={[styles.h1, { fontSize: 18, marginTop: 8 }]}>Câu hỏi thường gặp</Text>
+        <Text style={[styles.h1, { fontSize: 18, marginTop: 8 }]}>{t('m.faq', 'Câu hỏi thường gặp')}</Text>
         {FAQS.map((f, i) => (
           <Pressable key={i} onPress={() => setOpen(open === i ? null : i)} style={styles.faq}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

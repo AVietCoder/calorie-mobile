@@ -6,10 +6,13 @@ import { Button, Field } from '../components/UI';
 import { colors, radius } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { useI18n } from '../i18n';
+import { LangSwitch } from '../components/HeaderWidgets';
 
 export default function SignUpScreen({ navigation }) {
   const { register } = useAuth();
   const toast = useToast();
+  const { t } = useI18n();
   const [form, setForm] = useState({ username: '', password: '', birthYear: '', weight: '', height: '' });
   const [loading, setLoading] = useState(false);
   const set = (k) => (v) => setForm((s) => ({ ...s, [k]: v }));
@@ -17,16 +20,16 @@ export default function SignUpScreen({ navigation }) {
   const onSubmit = async () => {
     const { username, password, birthYear, weight, height } = form;
     if (!username || !password || !birthYear || !weight || !height) {
-      toast.show('Vui lòng nhập đầy đủ', 'warning');
+      toast.show(t('m.fill_all', 'Vui lòng nhập đầy đủ'), 'warning');
       return;
     }
     setLoading(true);
     try {
       await register(form);
-      toast.show('Đăng ký thành công! Hãy đăng nhập', 'success');
+      toast.show(t('m.reg_ok', 'Đăng ký thành công! Hãy đăng nhập'), 'success');
       setTimeout(() => navigation.navigate('SignIn'), 700);
     } catch (e) {
-      toast.show(e.message || 'Đăng ký thất bại', 'error');
+      toast.show(e.message || t('m.reg_fail', 'Đăng ký thất bại'), 'error');
     } finally {
       setLoading(false);
     }
@@ -36,36 +39,37 @@ export default function SignUpScreen({ navigation }) {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[colors.primarySoft, colors.bg]} style={styles.hero}>
+          <View style={{ position: 'absolute', top: 50, right: 16 }}><LangSwitch /></View>
           <View style={styles.logoBadge}><Ionicons name="leaf" size={28} color={colors.primary} /></View>
           <Text style={styles.brand}>Calorie AI</Text>
-          <Text style={styles.welcome}>Tạo tài khoản mới</Text>
-          <Text style={styles.sub}>Bắt đầu hành trình dinh dưỡng của bạn</Text>
+          <Text style={styles.welcome}>{t('auth.signup_title', 'Tạo tài khoản mới')}</Text>
+          <Text style={styles.sub}>{t('auth.signup_sub', 'Bắt đầu hành trình dinh dưỡng của bạn')}</Text>
         </LinearGradient>
 
         <View style={styles.card}>
-          <Field label="Tên đăng nhập" placeholder="Ví dụ: nva123" value={form.username}
+          <Field label={t('auth.username', 'Tên đăng nhập')} placeholder={t('auth.username_ph_signup', 'Ví dụ: nva123')} value={form.username}
             onChangeText={set('username')} autoCapitalize="none" autoCorrect={false} />
-          <Field label="Mật khẩu" placeholder="••••••••" value={form.password}
+          <Field label={t('auth.password', 'Mật khẩu')} placeholder="••••••••" value={form.password}
             onChangeText={set('password')} secureTextEntry />
-          <Field label="Năm sinh" placeholder="1995" value={form.birthYear}
+          <Field label={t('auth.birth', 'Năm sinh')} placeholder="1995" value={form.birthYear}
             onChangeText={set('birthYear')} keyboardType="number-pad" />
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Field label="Cân nặng (kg)" placeholder="65" value={form.weight}
+              <Field label={t('auth.weight', 'Cân nặng (kg)')} placeholder="65" value={form.weight}
                 onChangeText={set('weight')} keyboardType="number-pad" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Chiều cao (cm)" placeholder="170" value={form.height}
+              <Field label={t('auth.height', 'Chiều cao (cm)')} placeholder="170" value={form.height}
                 onChangeText={set('height')} keyboardType="number-pad" />
             </View>
           </View>
 
-          <Button title="Đăng ký ngay" onPress={onSubmit} loading={loading} style={{ marginTop: 4 }} />
+          <Button title={t('auth.signup_btn', 'Đăng ký ngay')} onPress={onSubmit} loading={loading} style={{ marginTop: 4 }} />
 
           <View style={styles.footer}>
-            <Text style={{ color: colors.textSub }}>Đã có tài khoản? </Text>
+            <Text style={{ color: colors.textSub }}>{t('auth.have_account', 'Đã có tài khoản?')} </Text>
             <Pressable onPress={() => navigation.navigate('SignIn')}>
-              <Text style={styles.link}>Đăng nhập</Text>
+              <Text style={styles.link}>{t('auth.signin_link', 'Đăng nhập')}</Text>
             </Pressable>
           </View>
         </View>
