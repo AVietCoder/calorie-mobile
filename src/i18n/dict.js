@@ -209,6 +209,10 @@
       "diet.disease_many_title": "Bạn đang có {n} tình trạng cần lưu ý",
       "diet.disease_warn_desc": "Vui lòng chú ý lựa chọn thực phẩm phù hợp. Hệ thống sẽ ưu tiên cảnh báo món ăn không tốt cho các bệnh lý dưới đây.",
 
+      /* nhãn dinh dưỡng (thẻ phân tích món ăn) */
+      "nut.fiber": "Chất xơ",
+      "nut.sugar": "Đường",
+      "nut.sodium": "Natri",
       /* nhãn biểu đồ trong Diet */
       "chart.protein": "Protein",
       "chart.carbs": "Carbs",
@@ -388,6 +392,27 @@
       "toast.login_required": "Vui lòng đăng nhập!",
       "toast.estimate_fail": "Không ước tính được",
       "toast.estimate_net_err": "Lỗi kết nối khi ước tính",
+
+      /* ----- thẻ xác nhận bữa ăn (chat) ----- */
+      "meal.confirm_title": "Xác nhận bữa ăn của bạn",
+      "meal.choose_time": "Chọn buổi ăn",
+      "meal.breakfast": "Sáng",
+      "meal.lunch": "Trưa",
+      "meal.dinner": "Tối",
+      "meal.snack": "Bữa phụ",
+      "meal.when": "Thời điểm",
+      "meal.today": "Hôm nay",
+      "meal.other_day": "Ngày khác",
+      "meal.confirm": "Xác nhận",
+      "meal.cancel": "Hủy",
+      "meal.pick_time": "Hãy chọn buổi ăn",
+      "meal.cancelled": "Đã hủy. Bạn có thể nhập món khác.",
+      "meal.updating": "Đang cập nhật thực đơn...",
+      "meal.logged": "Đã ghi lại bữa ăn của bạn!",
+      "meal.update_fail": "Mình chưa cập nhật được, bạn thử lại nhé.",
+      "meal.updated_toast": "Đã cập nhật thời khóa biểu & thống kê!",
+      "meal.conn_err": "Lỗi kết nối server",
+      "meal.confirm_sent": "Xác nhận: Ăn vào buổi {meal}, {day}",
     },
 
     en: {
@@ -588,6 +613,10 @@
       "diet.disease_many_title": "You have {n} conditions to watch",
       "diet.disease_warn_desc": "Please choose suitable foods. The system will flag foods that aren't good for the conditions below.",
 
+      /* nutrition labels (food analysis card) */
+      "nut.fiber": "Fiber",
+      "nut.sugar": "Sugar",
+      "nut.sodium": "Sodium",
       /* chart labels in Diet */
       "chart.protein": "Protein",
       "chart.carbs": "Carbs",
@@ -767,5 +796,26 @@
       "toast.login_required": "Please sign in!",
       "toast.estimate_fail": "Couldn't estimate",
       "toast.estimate_net_err": "Network error while estimating",
+
+      /* ----- meal confirmation card (chat) ----- */
+      "meal.confirm_title": "Confirm your meal",
+      "meal.choose_time": "Choose meal",
+      "meal.breakfast": "Breakfast",
+      "meal.lunch": "Lunch",
+      "meal.dinner": "Dinner",
+      "meal.snack": "Snack",
+      "meal.when": "When",
+      "meal.today": "Today",
+      "meal.other_day": "Another day",
+      "meal.confirm": "Confirm",
+      "meal.cancel": "Cancel",
+      "meal.pick_time": "Please choose a meal",
+      "meal.cancelled": "Cancelled. You can enter another dish.",
+      "meal.updating": "Updating your menu...",
+      "meal.logged": "I've logged your meal!",
+      "meal.update_fail": "I couldn't update it — please try again.",
+      "meal.updated_toast": "Timetable & stats updated!",
+      "meal.conn_err": "Server connection error",
+      "meal.confirm_sent": "Confirmed: eaten at {meal}, {day}",
     },
   };

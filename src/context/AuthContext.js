@@ -1,7 +1,8 @@
 // src/context/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  AuthAPI, setToken, setUserId, getToken, getUserId, clearAuth, setOnAuthError,
+  AuthAPI, setToken, setRefreshToken, setExpiresAt, setUserId,
+  getToken, getUserId, clearAuth, setOnAuthError,
 } from '../api/client';
 
 const AuthContext = createContext(null);
@@ -37,6 +38,9 @@ export function AuthProvider({ children }) {
     const result = await AuthAPI.login(emailOrUsername, password);
     if (result?.token) {
       await setToken(result.token);
+      // Lưu refresh_token + expires_at để tự làm mới phiên (tránh 401 sau ~1h).
+      if (result.refresh_token) await setRefreshToken(result.refresh_token);
+      if (result.expires_at) await setExpiresAt(result.expires_at);
       if (result.user?.id) await setUserId(result.user.id);
       setTokenState(result.token);
       setUser(result.user || { id: result.user_id });

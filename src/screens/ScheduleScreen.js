@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View, Pressable,
   TextInput, Alert,
@@ -7,8 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Button, Card, SectionTitle } from '../components/UI';
-import { ScheduleAPI, DietAPI, FoodAPI } from '../api/client';
+import { ScheduleAPI, DietAPI, FoodAPI, StatusAPI } from '../api/client';
 import { useToast } from '../components/Toast';
 import { colors, radius } from '../theme/colors';
 import { useAuthGuard } from '../hooks/useAuthGuard';
@@ -48,6 +50,14 @@ export default function ScheduleScreen({ navigation }) {
   const [exC, setExC] = useState('');
   const [estimating, setEstimating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  // Kết quả nhận diện ảnh món ngoài thực đơn (card dưới nút — giống web extra-photo-result)
+  const [photoResult, setPhotoResult] = useState(null);
+  // Cờ "Tên món" đang do AI điền (từ ảnh/ước tính trước). Phân tích ẢNH MỚI mà tên
+  // cũ do AI điền -> PHẢI reset form + KHÔNG gửi tên cũ làm note (tránh AI bị dẫn
+  // sai theo món trước — lỗi "vẫn hiển thị Sushi" / "ảnh không phù hợp ghi chú").
+  const nameFromAIRef = useRef(false);
+  // Overlay full-screen khi đổi món (giống web showSavingOverlay)
+  const [savingText, setSavingText] = useState('');
 
   const pday = todayPlanDay();
 
@@ -72,6 +82,15 @@ export default function ScheduleScreen({ navigation }) {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
+      // Giống web (schedule.html): chưa hoàn tất setup -> đưa về trang thiết lập lộ trình
+      try {
+        const statusRes = await StatusAPI.get();
+        if (statusRes?.success && !statusRes.is_setup_completed) {
+          navigation?.navigate?.('Profile');
+          return;
+        }
+      } catch {}
+
       // Mục tiêu calo/macro hôm nay
       try {
         const diet = await DietAPI.info();
@@ -111,9 +130,19 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshIntake, t, toast]);
+  }, [refreshIntake, t, toast, navigation]);
 
   useEffect(() => { if (!checking) load(); }, [checking]); // eslint-disable-line
+
+  // Khi quay lại tab Kế hoạch (vd sau khi xác nhận bữa ăn ở Chat khiến backend
+  // tái cân bằng thực đơn), tải lại im lặng để hiển thị plan mới nhất.
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) { firstFocus.current = false; return; }
+      if (!checking) load({ silent: true });
+    }, [checking, load]),
+  );
 
   const regenerate = async () => {
     setGenerating(true);
@@ -135,13 +164,14 @@ export default function ScheduleScreen({ navigation }) {
   const onToggleEaten = async (item) => {
     const key = `${pday}-${item.meal}`;
     const next = !dayIntake.eaten?.[key];
-    const day = await setEaten(pday, item.meal, next);
+    // Truyền item để lưu snapshot dinh dưỡng (thống kê 7 ngày & cảnh báo sức khỏe)
+    const day = await setEaten(pday, item.meal, next, item);
     setDayIntake({ ...day });
   };
 
   const onEat = async (item) => {
     if (Number(item.day) === pday) {
-      const day = await setEaten(pday, item.meal, true);
+      const day = await setEaten(pday, item.meal, true, item);
       setDayIntake({ ...day });
     }
   };
@@ -153,10 +183,12 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   const onChangeMeal = async (item, newFood) => {
-    toast.show(t('toast.recalc', 'Đang tính lại dinh dưỡng món bạn đổi...'), 'info');
+    // Giống web: che toàn bộ UI trong lúc backend tính lại dinh dưỡng món đã đổi
+    setSavingText(t('toast.recalc', 'Đang tính lại dinh dưỡng món bạn đổi...'));
     try {
       const res = await ScheduleAPI.updatePlan([{ day: item.day, meal: item.meal, food: newFood }]);
       if (res?.success) {
+        setSavingText(t('toast.reload_plan', 'Đang tải lại lộ trình mới...'));
         setFlatPlan(flatten(res.newPlan || []));
         toast.show(res.message || t('toast.update_ok', 'Đã cập nhật & tính lại dinh dưỡng!'), 'success');
       } else {
@@ -164,6 +196,8 @@ export default function ScheduleScreen({ navigation }) {
       }
     } catch (e) {
       toast.show(e.message || t('toast.save_net_err', 'Lỗi kết nối khi lưu'), 'error');
+    } finally {
+      setSavingText('');
     }
   };
 
@@ -173,7 +207,14 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   /* ── Món ngoài thực đơn ── */
-  const resetExtra = () => { setExName(''); setExKcal(''); setExP(''); setExF(''); setExC(''); };
+  const resetExtra = () => {
+    setExName(''); setExKcal(''); setExP(''); setExF(''); setExC('');
+    setPhotoResult(null);
+    nameFromAIRef.current = false;
+  };
+
+  // Người dùng TỰ GÕ tên món -> không còn coi là dữ liệu cũ do AI điền
+  const onNameChange = (v) => { setExName(v); nameFromAIRef.current = false; };
 
   const onAddExtra = async () => {
     if (!exName.trim()) { toast.show(t('extra.need_name', 'Vui lòng nhập tên món'), 'error'); return; }
@@ -196,11 +237,15 @@ export default function ScheduleScreen({ navigation }) {
       const res = await ScheduleAPI.estimateFood(exName.trim());
       if (res?.success && res.food) {
         const fd = res.food;
-        if (fd.food) setExName(fd.food);
+        if (fd.food) { setExName(fd.food); nameFromAIRef.current = true; }
         setExKcal(fd.calories != null ? String(Math.round(fd.calories)) : '');
         setExP(String(Math.round(parseMacro(fd.protein)) || ''));
         setExF(String(Math.round(parseMacro(fd.fat)) || ''));
         setExC(String(Math.round(parseMacro(fd.carbs)) || ''));
+        // Confidence thấp (AI phải đoán, không có dữ liệu chuẩn) -> cảnh báo ước lượng
+        if (fd.confidence === 'low') {
+          toast.show(t('extra.low_conf', 'Giá trị chỉ mang tính ước lượng.'), 'info');
+        }
       } else {
         toast.show(res?.error || t('toast.estimate_fail', 'Không ước tính được'), 'error');
       }
@@ -217,20 +262,58 @@ export default function ScheduleScreen({ navigation }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaType ? ['images'] : ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
+      quality: 1,
     });
     if (result.canceled || !result.assets?.[0]) return;
     setAnalyzing(true);
+    setPhotoResult(null);
+    // Ảnh MỚI: nếu dữ liệu trong form là của lần phân tích trước (AI điền)
+    // -> xoá sạch để không hiển thị/gửi nhầm món cũ làm note.
+    let note = exName.trim();
+    if (nameFromAIRef.current) {
+      resetExtra();
+      note = '';
+    }
     try {
-      const data = await FoodAPI.analyzePhoto(result.assets[0].uri, exName.trim());
+      // Chuẩn hóa ảnh GIỐNG HỆT luồng Chat (2MP, JPEG q0.9, tham số cố định)
+      // → cùng ảnh gốc luôn ra cùng bytes → kết quả AI lặp lại được, và Plan
+      // nhận diện số lượng món tốt ngang Chat.
+      const asset = result.assets[0];
+      let sendUri = asset.uri;
+      try {
+        const actions = [];
+        if (asset.width && asset.height) {
+          const scale = Math.min(1, Math.sqrt(2097152 / (asset.width * asset.height)));
+          actions.push({ resize: { width: Math.max(1, Math.round(asset.width * scale)) } });
+        } else {
+          actions.push({ resize: { width: 1024 } });
+        }
+        const compressed = await ImageManipulator.manipulateAsync(
+          asset.uri, actions,
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        sendUri = compressed.uri;
+      } catch {} // nén lỗi -> gửi ảnh gốc, server tự resize
+      const data = await FoodAPI.analyzePhoto(sendUri, note);
       if (data?.success && data.food) {
         const fd = data.food;
-        if (fd.food) setExName(fd.food);
+        const foodName = (fd.food || fd.description || fd.name || '').trim();
+        if (foodName) { setExName(foodName); nameFromAIRef.current = true; }
         setExKcal(fd.calories != null ? String(Math.round(fd.calories)) : '');
         setExP(String(Math.round(parseMacro(fd.protein)) || ''));
         setExF(String(Math.round(parseMacro(fd.fat)) || ''));
         setExC(String(Math.round(parseMacro(fd.carbs)) || ''));
-        toast.show(t('extra.photo_done', 'Đã phân tích ảnh! Kiểm tra lại số liệu nhé.'), 'success');
+        // Card kết quả + toast "Nhận diện: ..." — giống web analyzeExtraPhoto
+        const cals = fd.calories != null ? Math.round(fd.calories) : '?';
+        setPhotoResult({
+          name: foodName || 'Món ăn',
+          cals,
+          p: parseMacro(fd.protein) ? Math.round(parseMacro(fd.protein)) + 'g' : '?',
+          f: parseMacro(fd.fat) ? Math.round(parseMacro(fd.fat)) + 'g' : '?',
+          c: parseMacro(fd.carbs) ? Math.round(parseMacro(fd.carbs)) + 'g' : '?',
+          lowConf: fd.confidence === 'low',
+        });
+        toast.show(`${t('extra.detected', 'Nhận diện')}: ${foodName || 'món ăn'} · ${cals} kcal`, 'success');
       } else if (data?.notFood) {
         toast.show(data.error || t('extra.not_food', 'Ảnh không giống món ăn. Hãy thử ảnh khác.'), 'error');
       } else {
@@ -378,7 +461,7 @@ export default function ScheduleScreen({ navigation }) {
                 <View style={{ marginTop: 12, gap: 10 }}>
                   <Text style={styles.extraDesc}>{t('extra.desc', 'Ăn vặt, trái cây, đồ uống… ngoài thực đơn? Thêm vào đây để tính vào tổng hôm nay.')}</Text>
                   <TextInput
-                    value={exName} onChangeText={setExName}
+                    value={exName} onChangeText={onNameChange}
                     placeholder={t('extra.name_ph', 'VD: Táo, sữa chua, trà sữa...')}
                     placeholderTextColor={colors.muted} style={styles.input}
                   />
@@ -396,6 +479,30 @@ export default function ScheduleScreen({ navigation }) {
                       <Text style={styles.aiBtnText}>{analyzing ? t('extra.analyzing_photo', 'AI đang phân tích ảnh...') : t('extra.upload_photo', 'Tải ảnh món ăn')}</Text>
                     </Pressable>
                   </View>
+                  {photoResult && (
+                    <View style={styles.photoResultCard}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="restaurant" size={13} color={colors.primaryDark} />
+                        <Text style={styles.photoResultName}>{photoResult.name}</Text>
+                      </View>
+                      <View style={styles.photoResultRow}>
+                        <Text style={styles.photoResultStat}>
+                          <Ionicons name="flame" size={11} color="#e8743b" /> <Text style={{ fontWeight: '800' }}>{photoResult.cals} kcal</Text>
+                        </Text>
+                        <Text style={styles.photoResultStat}>Protein <Text style={{ fontWeight: '800' }}>{photoResult.p}</Text></Text>
+                        <Text style={styles.photoResultStat}>Béo <Text style={{ fontWeight: '800' }}>{photoResult.f}</Text></Text>
+                        <Text style={styles.photoResultStat}>Carbs <Text style={{ fontWeight: '800' }}>{photoResult.c}</Text></Text>
+                      </View>
+                      <Text style={styles.photoResultNote}>
+                        <Ionicons name="checkmark-circle" size={11} color={colors.primary} /> {t('extra.filled_note', 'Đã điền vào form — nhấn Thêm để lưu')}
+                      </Text>
+                      {photoResult.lowConf && (
+                        <Text style={styles.photoResultLowConf}>
+                          <Ionicons name="information-circle" size={11} color="#b8860b" /> {t('extra.low_conf', 'Giá trị chỉ mang tính ước lượng.')}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                   <View style={styles.macroInputRow}>
                     <SmallInput label={t('extra.kcal', 'kcal')} value={exKcal} onChangeText={setExKcal} />
                     <SmallInput label="P (g)" value={exP} onChangeText={setExP} />
@@ -509,6 +616,15 @@ export default function ScheduleScreen({ navigation }) {
           </>
         )}
       </ScrollView>
+
+      {/* Overlay che toàn bộ UI khi đang lưu thay đổi món (giống web showSavingOverlay) */}
+      {!!savingText && (
+        <View style={styles.savingOverlay}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.savingText}>{savingText}</Text>
+          <Text style={styles.savingSub}>{t('m.dont_close', 'Vui lòng không đóng ứng dụng…')}</Text>
+        </View>
+      )}
 
       <MealDetailModal
         visible={!!modalItem}
@@ -644,4 +760,24 @@ const styles = StyleSheet.create({
 
   emptyContainer: { alignItems: 'center', marginTop: 40 },
   emptyText: { color: colors.muted },
+
+  /* card kết quả nhận diện ảnh (giống web extra-photo-result) */
+  photoResultCard: {
+    backgroundColor: colors.primarySoft, borderWidth: 1.5, borderColor: colors.primary,
+    borderRadius: 10, padding: 11, gap: 5,
+  },
+  photoResultName: { fontSize: 13.5, fontWeight: '700', color: colors.primaryDark },
+  photoResultRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  photoResultStat: { fontSize: 12.5, color: colors.textMain },
+  photoResultNote: { fontSize: 11.5, color: colors.textSub },
+  photoResultLowConf: { fontSize: 11.5, color: '#b8860b' },
+
+  /* overlay lưu thay đổi (giống web saving-overlay) */
+  savingOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(251,250,246,0.96)',
+    alignItems: 'center', justifyContent: 'center', gap: 14, zIndex: 999,
+  },
+  savingText: { fontSize: 14, fontWeight: '600', color: colors.primaryDark },
+  savingSub: { fontSize: 12, color: colors.textSub },
 });

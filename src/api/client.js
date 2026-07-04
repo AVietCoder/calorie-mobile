@@ -4,16 +4,71 @@ import { API_BASE_URL } from './config';
 import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'calorie_ai_token';
+const REFRESH_KEY = 'calorie_ai_refresh';
+const EXPIRES_KEY = 'calorie_ai_expires_at';
 const USER_ID_KEY = 'user_id';
 const CHAT_CACHE_KEY = 'chat_history_cache_v1';
 const PLAN_CACHE_KEY = 'plan_cache_v1';
 
 export async function setToken(token) { await AsyncStorage.setItem(TOKEN_KEY, token); }
 export async function getToken() { return AsyncStorage.getItem(TOKEN_KEY); }
+export async function setRefreshToken(rt) { if (rt) await AsyncStorage.setItem(REFRESH_KEY, String(rt)); }
+export async function getRefreshToken() { return AsyncStorage.getItem(REFRESH_KEY); }
+export async function setExpiresAt(ts) { if (ts != null) await AsyncStorage.setItem(EXPIRES_KEY, String(ts)); }
+export async function getExpiresAt() {
+  const s = await AsyncStorage.getItem(EXPIRES_KEY);
+  return s ? parseInt(s, 10) || 0 : 0;
+}
 export async function setUserId(id) { await AsyncStorage.setItem(USER_ID_KEY, String(id)); }
 export async function getUserId() { return AsyncStorage.getItem(USER_ID_KEY); }
 export async function clearAuth() {
-  await AsyncStorage.multiRemove([TOKEN_KEY, USER_ID_KEY, CHAT_CACHE_KEY, PLAN_CACHE_KEY]);
+  await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_KEY, EXPIRES_KEY, USER_ID_KEY, CHAT_CACHE_KEY, PLAN_CACHE_KEY]);
+}
+
+// ==== Auto-refresh access token (port từ web public/session.js) ====
+// Supabase access_token hết hạn sau ~1h. Khi đăng nhập ta lưu thêm refresh_token +
+// expires_at rồi tự gọi /auth (action=refresh) TRƯỚC khi hết hạn 5 phút, tránh việc
+// người dùng đang thao tác thì bị đá ra vì 401.
+const REFRESH_SKEW = 5 * 60; // giây
+let _refreshing = null;
+
+async function refreshSession() {
+  const rt = await getRefreshToken();
+  if (!rt) return false;
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh', refresh_token: rt }),
+      });
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+      if (!res.ok || !data?.token) return false;
+      await setToken(data.token);
+      if (data.refresh_token) await setRefreshToken(data.refresh_token);
+      if (data.expires_at) await setExpiresAt(data.expires_at);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshing = null;
+    }
+  })();
+  return _refreshing;
+}
+
+// Bảo đảm token còn hạn trước mỗi request. true = token vẫn dùng được.
+export async function ensureFreshToken() {
+  const token = await getToken();
+  if (!token) return false;                     // chưa đăng nhập
+  const exp = await getExpiresAt();
+  if (!exp) return true;                         // đăng nhập kiểu cũ chưa lưu hạn
+  const now = Math.floor(Date.now() / 1000);
+  if (exp - now > REFRESH_SKEW) return true;     // còn hạn đủ lâu
+  return await refreshSession();
 }
 
 // ==== Auth-error hook (RootNavigator/AuthProvider sẽ đăng ký) ====
@@ -40,7 +95,9 @@ function fetchWithTimeout(url, opts, ms = 30000) {
   });
 }
 
-export async function apiFetch(path, options = {}) {
+export async function apiFetch(path, options = {}, _retried = false) {
+  // Làm mới token nếu sắp/đã hết hạn trước khi gửi request.
+  await ensureFreshToken();
   const token = await getToken();
   const isFormData = options.body instanceof FormData;
   const headers = {
@@ -68,7 +125,11 @@ export async function apiFetch(path, options = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
 
   if (res.status === 401 || res.status === 403) {
-    // Token hết hạn → clear + báo navigator
+    // Thử làm mới token 1 lần rồi gọi lại; nếu vẫn hỏng → clear + báo navigator.
+    if (!_retried) {
+      const ok = await refreshSession();
+      if (ok) return apiFetch(path, options, true);
+    }
     await clearAuth();
     if (typeof _onAuthError === 'function') _onAuthError();
     throw new Error((data && (data.error || data.message)) || 'Phiên đăng nhập đã hết hạn.');
@@ -110,15 +171,24 @@ export const StatusAPI = {
 };
 
 export const ChatAPI = {
-  send: (message) => {
+  // lastMeal: món vừa phân tích đang hiển thị ở thẻ (để backend recall đúng "món gần nhất").
+  // lang: 'vi' | 'en' để AI trả lời & hỏi lại đúng ngôn ngữ (giống web).
+  send: (message, lastMeal, lang) => {
     const fd = new FormData();
     fd.append('message', message || '');
+    if (lastMeal) fd.append('lastClientMeal', typeof lastMeal === 'string' ? lastMeal : JSON.stringify(lastMeal));
+    if (lang) fd.append('lang', lang);
     return apiFetch('/chat', { method: 'POST', body: fd });
   },
 
-  sendWithImage: async (message, imageUri) => {
+  // reanalyze=true: đang GỬI LẠI đúng ảnh cũ kèm chỉnh sửa → server bơm ngữ cảnh
+  // hội thoại vào vision để phân tích lại. Ảnh mới: bỏ trống → context sạch.
+  sendWithImage: async (message, imageUri, lastMeal, lang, reanalyze = false) => {
     const fd = new FormData();
     fd.append('message', message || '');
+    if (lastMeal) fd.append('lastClientMeal', typeof lastMeal === 'string' ? lastMeal : JSON.stringify(lastMeal));
+    if (lang) fd.append('lang', lang);
+    if (reanalyze) fd.append('reanalyze', '1');
     if (Platform.OS === 'web') {
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -129,7 +199,7 @@ export const ChatAPI = {
     return apiFetch('/chat', { method: 'POST', body: fd });
   },
 
-  sendMealUpdate: (message, mealData, mealTime, mealDayValue) => {
+  sendMealUpdate: (message, mealData, mealTime, mealDayValue, lang) => {
     const fd = new FormData();
     const displayDate = mealDayValue === 'today' ? 'hôm nay' : mealDayValue;
     fd.append('message', message);
@@ -138,6 +208,7 @@ export const ChatAPI = {
     fd.append('mealTime', mealTime);
     fd.append('mealDayText', displayDate);
     fd.append('mealDayValue', mealDayValue);
+    if (lang) fd.append('lang', lang);
     return apiFetch('/chat', { method: 'POST', body: fd });
   },
 
@@ -178,6 +249,13 @@ export const ScheduleAPI = {
       method: 'POST',
       body: JSON.stringify({ action: 'estimate_food', food, meal }),
     }),
+  // Cảnh báo sức khỏe: AI phân tích ăn uống 7 ngày gần nhất, dự đoán xu hướng bệnh
+  // days: [{date, calories, protein, fat, carbs, dishes:[..]}]
+  healthCheck: (days, lang) =>
+    apiFetch('/coach-dynamic', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'health_check', days, lang }),
+    }),
   cached: () => getCache(PLAN_CACHE_KEY),
   setCached: (plan) => setCache(PLAN_CACHE_KEY, plan),
 };
@@ -200,4 +278,9 @@ export const FoodAPI = {
 
 export const SetupAPI = {
   save: (payload) => apiFetch('/setup', { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+// D: Nhật ký ảnh món ăn — danh sách ảnh đã phân tích (Cloudinary URL + dinh dưỡng).
+export const DiaryAPI = {
+  list: (limit = 60) => apiFetch(`/food-diary?limit=${limit}`),
 };

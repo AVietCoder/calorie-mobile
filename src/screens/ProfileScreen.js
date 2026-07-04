@@ -202,23 +202,56 @@ export default function ProfileScreen({ navigation }) {
     })();
   }, [checking]); // eslint-disable-line
 
+  // Port đầy đủ validateForm() của web public/setup.js (range check + deadline tương lai)
   const validate = () => {
+    const showError = (message) => { toast.show(message, 'error'); return false; };
+
     if (step === 0) {
-      if (!form.birth_year || !form.height || !form.weight) {
-        toast.show(t('m.fill_all', 'Vui lòng nhập đầy đủ chỉ số'), 'error');
-        return false;
+      const birthYear = Number(form.birth_year);
+      const height = Number(form.height);
+      const weight = Number(form.weight);
+      const currentYear = new Date().getFullYear();
+
+      if (!birthYear) return showError('Vui lòng nhập năm sinh.');
+      if (birthYear < 1900 || birthYear > currentYear) {
+        return showError('Năm sinh không hợp lệ.');
+      }
+      if (!height || height < 80 || height > 250) {
+        return showError('Chiều cao phải nằm trong khoảng 80 - 250 cm.');
+      }
+      if (!weight || weight < 20 || weight > 300) {
+        return showError('Cân nặng phải nằm trong khoảng 20 - 300 kg.');
       }
     }
+
     if (step === 1) {
+      const targetWeight = Number(form.target_weight);
+
       if (form.goals.length === 0) {
-        toast.show(t('setup.pick_goal', 'Vui lòng chọn ít nhất một mục tiêu.'), 'error');
-        return false;
+        return showError(t('setup.pick_goal', 'Vui lòng chọn ít nhất một mục tiêu.'));
       }
-      if (hasDisease && !finalDisease) {
-        toast.show(t('setup.disease_other_ph', 'Vui lòng nhập bệnh lý'), 'error');
-        return false;
+      if (hasDisease) {
+        if (!form.disease) return showError('Vui lòng chọn bệnh / tình trạng sức khỏe.');
+        if (form.disease === 'Khác' && !form.custom_disease.trim()) {
+          return showError('Vui lòng nhập tên bệnh.');
+        }
+        if (!finalDisease.trim()) return showError('Vui lòng nhập bệnh / tình trạng sức khỏe.');
+      }
+      if (!targetWeight || targetWeight < 20 || targetWeight > 300) {
+        return showError('Cân nặng mục tiêu phải nằm trong khoảng 20 - 300 kg.');
+      }
+      if (!form.deadline) return showError('Vui lòng chọn deadline.');
+      const deadlineDate = new Date(form.deadline);
+      deadlineDate.setHours(23, 59, 59, 999);
+      if (deadlineDate <= new Date()) {
+        return showError('Deadline phải là ngày trong tương lai.');
       }
     }
+
+    if (step === 2 && !form.activity) {
+      return showError('Vui lòng chọn tần suất vận động.');
+    }
+
     return true;
   };
 

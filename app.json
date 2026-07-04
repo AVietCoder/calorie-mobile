@@ -32,6 +32,13 @@
           "photosPermission": "Cho phép ứng dụng truy cập ảnh để phân tích món ăn.",
           "cameraPermission": "Cho phép ứng dụng dùng camera để chụp món ăn."
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Cho phép ứng dụng dùng micro để nhập câu hỏi bằng giọng nói.",
+          "speechRecognitionPermission": "Cho phép ứng dụng nhận dạng giọng nói của bạn."
+        }
       ]
     ],
     "extra": {

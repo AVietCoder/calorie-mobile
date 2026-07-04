@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 
+import LandingScreen from '../screens/LandingScreen';
 import SignInScreen from '../screens/SignInScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import DietScreen from '../screens/DietScreen';
@@ -23,6 +24,8 @@ const Tabs = createBottomTabNavigator();
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+      {/* Landing giới thiệu trước đăng nhập — giống web index.html */}
+      <AuthStack.Screen name="Landing" component={LandingScreen} />
       <AuthStack.Screen name="SignIn" component={SignInScreen} />
       <AuthStack.Screen name="SignUp" component={SignUpScreen} />
     </AuthStack.Navigator>
@@ -39,6 +42,8 @@ function MainTabs() {
 
   return (
     <Tabs.Navigator
+      // Giống web: sau đăng nhập đưa người dùng vào trang Hướng dẫn (guide.html) trước
+      initialRouteName="Guide"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,

@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { ActivityIndicator, Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BarChart, LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
-import { Card, SectionTitle } from '../components/UI';
+import { LineChart } from 'react-native-chart-kit';
+import { DonutChart, BarGoalChart, PolarAreaChart, WeekLinesChart } from '../components/Charts';
+import { Card, SectionTitle, Button } from '../components/UI';
 import { colors, radius } from '../theme/colors';
-import { DietAPI } from '../api/client';
+import { DietAPI, StatusAPI, ScheduleAPI, DiaryAPI } from '../api/client';
+import { getLastDays } from '../storage/intake';
 import { useToast } from '../components/Toast';
 import { useAuthGuard } from '../hooks/useAuthGuard';
 import { useI18n } from '../i18n';
@@ -31,30 +34,88 @@ const FALLBACK = {
   profile: { goal: 'lose', weight: 74, target_weight: 68, start_weight: 78, deadline: '01/12/2025', disease: '' },
 };
 
-const GOAL_LABEL = {
-  lose: 'Giảm cân', maintain: 'Giữ cân', gain: 'Tăng cân', muscle: 'Tăng cơ', disease: 'Hỗ trợ điều trị bệnh',
+// goal id -> khoá i18n (label dịch theo ngôn ngữ hiện tại trong render)
+const GOAL_KEY = {
+  lose: ['setup.goal_lose', 'Giảm cân'],
+  maintain: ['setup.goal_maintain', 'Giữ cân'],
+  gain: ['setup.goal_gain', 'Tăng cân'],
+  muscle: ['setup.goal_muscle', 'Tăng cơ'],
+  disease: ['setup.goal_disease', 'Hỗ trợ điều trị bệnh'],
 };
 
-export default function DietScreen() {
+export default function DietScreen({ navigation }) {
   const { checking } = useAuthGuard();
-  const { t, localizeDisease } = useI18n();
+  const { t, lang, localizeDisease } = useI18n();
   const toast = useToast();
   const [d, setD] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Thống kê 7 ngày + cảnh báo sức khỏe (tính năng mới — đồng bộ web diet-details)
+  const [weekDays, setWeekDays] = useState([]);
+  const [diary, setDiary] = useState([]);
+  const [healthChecking, setHealthChecking] = useState(false);
+  const [healthResult, setHealthResult] = useState(null); // { status, summary, advice }
+
+  const runHealthCheck = useCallback(async () => {
+    const days = weekDays.filter((x) => x.calories > 0);
+    if (!days.length) {
+      toast.show(t('week.no_data', 'Chưa có dữ liệu — hãy tick "Đã ăn" ở trang Kế hoạch để hệ thống thống kê.'), 'info');
+      return;
+    }
+    setHealthChecking(true);
+    try {
+      const res = await ScheduleAPI.healthCheck(days, lang);
+      if (res?.success) {
+        setHealthResult({
+          status: res.status || 'stable',
+          summary: res.summary || '',
+          advice: Array.isArray(res.advice) ? res.advice : [],
+        });
+      } else {
+        toast.show(res?.error || t('toast.coach_net_err', 'Lỗi kết nối HLV AI'), 'error');
+      }
+    } catch (e) {
+      toast.show(e.message || t('toast.coach_net_err', 'Lỗi kết nối HLV AI'), 'error');
+    } finally {
+      setHealthChecking(false);
+    }
+  }, [weekDays, lang, t, toast]);
+
   const load = useCallback(async () => {
     try {
-      const res = await DietAPI.info();
+      // Giống web (diet-details.js): chưa hoàn tất setup -> đưa về trang thiết lập lộ trình
+      const [statusRes, res] = await Promise.all([
+        StatusAPI.get().catch(() => null),
+        DietAPI.info(),
+      ]);
+      if (statusRes?.success && !statusRes.is_setup_completed) {
+        navigation?.navigate?.('Profile');
+        return;
+      }
       if (res?.success && res.data) setD(res.data);
       else setD(FALLBACK);
+      // Nạp dữ liệu ăn uống 7 ngày (local) cho biểu đồ tuần & cảnh báo sức khỏe
+      try { setWeekDays(await getLastDays(7)); } catch {}
+      // D: nhật ký ảnh món ăn (server) — phụ, lỗi thì bỏ qua
+      try { const dr = await DiaryAPI.list(60); if (dr?.success) setDiary(Array.isArray(dr.items) ? dr.items : []); } catch {}
     } catch {
       setD(FALLBACK);
       toast.show(t('toast.diet_load_fail', 'Không thể tải dữ liệu lộ trình'), 'error');
     } finally { setLoading(false); setRefreshing(false); }
-  }, [t, toast]);
+  }, [t, toast]); // eslint-disable-line
 
   useEffect(() => { if (!checking) load(); }, [checking]); // eslint-disable-line
+
+  // Web tải lại dữ liệu mỗi lần mở trang -> mobile tải lại (im lặng) khi tab được focus,
+  // để sau khi hoàn tất setup / xác nhận bữa ăn số liệu luôn mới.
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) { firstFocus.current = false; return; }
+      if (!checking) load();
+    }, [checking, load]),
+  );
 
   if (checking || loading) {
     return (
@@ -73,13 +134,11 @@ export default function DietScreen() {
   const calories = Number(data.calories) || 0;
   const tdee = Number(data.tdee) || 0;
   const bmr = Number(data.bmr) || 0;
-  const bmrRatio = tdee > 0 ? Math.min(bmr / tdee, 1) : 0;
-
-  // Pie macro (gram)
+  // Macro doughnut THEO KCAL (giống web renderMacroChart: P*4 / C*4 / F*9, cutout 72%)
   const macroData = [
-    { name: t('chart.protein', 'Protein'), value: macros.protein, color: '#c25b4a', legendFontColor: '#444', legendFontSize: 12 },
-    { name: t('chart.carbs', 'Carbs'), value: macros.carbs, color: '#b8975a', legendFontColor: '#444', legendFontSize: 12 },
-    { name: t('chart.fats', 'Fats'), value: macros.fat, color: '#7d9b76', legendFontColor: '#444', legendFontSize: 12 },
+    { value: (Number(macros.protein) || 0) * 4, color: '#c25b4a', label: `${t('chart.protein', 'Protein')} ${Math.round(macros.protein)}g` },
+    { value: (Number(macros.carbs) || 0) * 4, color: '#b8975a', label: `${t('chart.carbs', 'Carbs')} ${Math.round(macros.carbs)}g` },
+    { value: (Number(macros.fat) || 0) * 9, color: '#7d9b76', label: `${t('chart.fats', 'Fats')} ${Math.round(macros.fat)}g` },
   ];
 
   // Tiến độ cân nặng (suy ra như web)
@@ -88,6 +147,9 @@ export default function DietScreen() {
   const tgtW = Number(profile.target_weight) || curW;
   const weightSeries = [sW, +(sW + (curW - sW) * 0.5).toFixed(1), curW, tgtW];
   const weightLabels = [t('chart.start', 'Bắt đầu'), '...', t('chart.current', 'Hiện tại'), t('chart.target', 'Mục tiêu')];
+  // Đường mục tiêu (web: dataset gold, borderDash) — chart-kit không hỗ trợ dash,
+  // dùng dataset màu gold liền để giữ đúng ý nghĩa.
+  const targetLine = weightLabels.map(() => tgtW);
 
   // Calo theo ngày (suy ra từ target như web)
   const variation = [1.0, 0.96, 1.02, 0.98, 1.05, 1.1, 1.04];
@@ -100,7 +162,8 @@ export default function DietScreen() {
   if (Array.isArray(rawDisease)) diseaseList = rawDisease.filter(Boolean);
   else if (typeof rawDisease === 'string') diseaseList = rawDisease.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 
-  const goalText = GOAL_LABEL[String(profile.goal || '').split(',')[0]] || profile.goal || '—';
+  const goalEntry = GOAL_KEY[String(profile.goal || '').split(',')[0]];
+  const goalText = goalEntry ? t(goalEntry[0], goalEntry[1]) : (profile.goal || '—');
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -166,47 +229,172 @@ export default function DietScreen() {
           )}
         </Card>
 
-        {/* Macro donut */}
+        {/* Macro donut — giống web: cutout 72%, tổng kcal ở tâm */}
         <Card>
           <SectionTitle sub={t('diet.macro_ratio', 'Tỉ lệ Macro đề xuất')}>{t('chart.protein', 'Protein')} · {t('chart.carbs', 'Carbs')} · {t('chart.fats', 'Fats')}</SectionTitle>
-          <PieChart
-            data={macroData} width={screenW - 64} height={180}
-            accessor="value" backgroundColor="transparent" paddingLeft="10"
-            chartConfig={chartConfig} hasLegend
+          <DonutChart
+            size={180} cutout={0.72} data={macroData}
+            centerTop={calories.toLocaleString()} centerBottom={t('common.kcal', 'kcal')}
           />
         </Card>
 
-        {/* Weight progress */}
+        {/* Weight progress — có đường mục tiêu màu vàng (web: dataset gold, dashed) */}
         <Card>
           <SectionTitle sub={t('diet.weight_progress', 'Tiến độ cân nặng')}>{t('chart.weight_kg', 'Cân nặng (kg)')}</SectionTitle>
           <LineChart
-            data={{ labels: weightLabels, datasets: [{ data: weightSeries }] }}
+            data={{
+              labels: weightLabels,
+              datasets: [
+                { data: weightSeries, color: (o = 1) => `rgba(125, 155, 118, ${o})`, strokeWidth: 3 },
+                { data: targetLine, color: (o = 1) => `rgba(184, 151, 90, ${o})`, strokeWidth: 2, withDots: false },
+              ],
+              legend: [t('chart.weight_kg', 'Cân nặng (kg)'), t('chart.target', 'Mục tiêu')],
+            }}
             width={screenW - 64} height={200}
             chartConfig={{ ...chartConfig, decimalPlaces: 1 }}
             bezier withInnerLines={false} style={{ marginLeft: -10 }}
           />
         </Card>
 
-        {/* Weekly calories */}
+        {/* Weekly calories — bar + goal line nét đứt vàng (giống web) */}
         <Card>
           <SectionTitle sub={t('diet.cal_per_day', 'Calo theo từng ngày trong tuần')}>{t('chart.cal_intake_est', 'Calo nạp (ước tính)')}</SectionTitle>
-          <BarChart
-            data={{ labels: weekLabels, datasets: [{ data: weekly }] }}
+          <BarGoalChart
             width={screenW - 64} height={210}
-            chartConfig={chartConfig} fromZero showBarTops={false} style={{ marginLeft: -10 }}
+            labels={weekLabels} data={weekly}
+            goal={calories} goalLabel={t('chart.target', 'Mục tiêu')}
+            barColor="#7d9b76" goalColor="#b8975a" unit={t('common.kcal', 'kcal')}
           />
         </Card>
 
-        {/* BMR vs TDEE */}
+        {/* BMR vs TDEE — doughnut 2 phần (web: primaryDeep + gold, cutout 68%) */}
         <Card>
           <SectionTitle sub="BMR / TDEE">{t('chart.bmr_basal', 'BMR (cơ bản)')}</SectionTitle>
-          <ProgressChart
-            data={{ labels: ['BMR'], data: [bmrRatio] }}
-            width={screenW - 64} height={180} strokeWidth={14} radius={60}
-            chartConfig={chartConfig} hideLegend
+          <DonutChart
+            size={170} cutout={0.68}
+            data={[
+              { value: bmr, color: '#4d6549', label: `${t('chart.bmr_basal', 'BMR (cơ bản)')} ${bmr.toLocaleString()}` },
+              { value: Math.max(0, tdee - bmr), color: '#b8975a', label: `${t('chart.activity', 'Vận động')} ${Math.max(0, tdee - bmr).toLocaleString()}` },
+            ]}
           />
-          <Text style={styles.note}>BMR {Math.round(bmrRatio * 100)}% TDEE</Text>
         </Card>
+
+        {/* Tổng quan năng lượng — polarArea BMR/TDEE/Mục tiêu (web renderEnergyChart) */}
+        <Card>
+          <SectionTitle sub={t('diet.energy_overview', 'Tổng quan năng lượng')}>{t('chart.bmr', 'BMR')} · {t('chart.tdee', 'TDEE')} · {t('chart.target', 'Mục tiêu')}</SectionTitle>
+          <PolarAreaChart
+            size={Math.min(screenW - 96, 260)}
+            unit={t('common.kcal', 'kcal')}
+            data={[
+              { value: bmr, color: 'rgba(77,101,73,0.55)', border: '#4d6549', label: t('chart.bmr', 'BMR') },
+              { value: tdee, color: 'rgba(125,155,118,0.55)', border: '#7d9b76', label: t('chart.tdee', 'TDEE') },
+              { value: calories, color: 'rgba(184,151,90,0.55)', border: '#b8975a', label: t('chart.target', 'Mục tiêu') },
+            ]}
+          />
+        </Card>
+
+        {/* ── THỐNG KÊ 7 NGÀY + CẢNH BÁO SỨC KHỎE (tính năng mới — đồng bộ web) ── */}
+        <Card>
+          <SectionTitle sub={t('week.sub', 'Các chất đã nạp mỗi ngày so với mức khuyến nghị')}>{t('week.chart_title', 'Chất dinh dưỡng đã nạp vs khuyến nghị')}</SectionTitle>
+          {weekDays.some((x) => x.calories > 0) ? (
+            <WeekLinesChart
+              width={screenW - 64} height={200} unit="g"
+              labels={weekDays.map((x) => x.date.slice(8, 10) + '/' + x.date.slice(5, 7))}
+              series={[
+                { name: t('chart.protein', 'Protein'), color: '#c25b4a', data: weekDays.map((x) => Math.round(x.protein)), target: macros.protein },
+                { name: t('chart.fats', 'Fats'), color: '#7d9b76', data: weekDays.map((x) => Math.round(x.fat)), target: macros.fat },
+                { name: t('chart.carbs', 'Carbs'), color: '#b8975a', data: weekDays.map((x) => Math.round(x.carbs)), target: macros.carbs },
+              ]}
+            />
+          ) : (
+            <Text style={styles.weekEmpty}>{t('week.no_data', 'Chưa có dữ liệu — hãy tick "Đã ăn" ở trang Kế hoạch để hệ thống thống kê.')}</Text>
+          )}
+        </Card>
+
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <Ionicons name="pulse" size={18} color={colors.primary} />
+            <Text style={styles.cardHeadTitle}>{t('week.health_title', 'Cảnh báo sức khỏe 7 ngày')}</Text>
+          </View>
+          <Text style={styles.cardHeadDesc}>{t('week.health_desc', 'AI phân tích hành vi ăn uống 7 ngày gần nhất, dự đoán xu hướng tình trạng bệnh và đưa lời khuyên.')}</Text>
+
+          {healthResult && (
+            <View style={{ marginTop: 12 }}>
+              <View style={[styles.healthBadge, {
+                backgroundColor: healthResult.status === 'good' ? colors.primarySoft
+                  : healthResult.status === 'risk' ? '#FDECEA' : '#FDF6E8',
+              }]}>
+                <Ionicons
+                  name={healthResult.status === 'good' ? 'checkmark-circle' : healthResult.status === 'risk' ? 'warning' : 'remove-circle'}
+                  size={15}
+                  color={healthResult.status === 'good' ? colors.primaryDark : healthResult.status === 'risk' ? colors.danger : '#B8975A'}
+                />
+                <Text style={[styles.healthBadgeText, {
+                  color: healthResult.status === 'good' ? colors.primaryDark
+                    : healthResult.status === 'risk' ? colors.danger : '#B8975A',
+                }]}>
+                  {healthResult.status === 'good' ? t('week.status_good', 'Đang cải thiện tốt')
+                    : healthResult.status === 'risk' ? t('week.status_risk', 'Có nguy cơ xấu đi')
+                    : t('week.status_stable', 'Duy trì ổn định')}
+                </Text>
+              </View>
+              {!!healthResult.summary && <Text style={styles.healthSummary}>{healthResult.summary}</Text>}
+              {healthResult.advice.length > 0 && (
+                <View style={{ marginTop: 8, gap: 4 }}>
+                  <Text style={styles.healthAdviceLabel}>{t('week.advice', 'Lời khuyên')}</Text>
+                  {healthResult.advice.map((a, i) => (
+                    <View key={i} style={{ flexDirection: 'row', gap: 7 }}>
+                      <Text style={{ color: colors.primary, fontWeight: '800' }}>•</Text>
+                      <Text style={styles.healthAdviceText}>{a}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          <Button
+            title={healthChecking ? t('week.analyzing', 'AI đang phân tích...') : t('week.analyze', 'Phân tích bằng AI')}
+            onPress={runHealthCheck}
+            loading={healthChecking}
+            icon={<Ionicons name="sparkles" size={15} color="#fff" />}
+            style={{ marginTop: 14 }}
+          />
+        </Card>
+
+        {/* D: Nhật ký ảnh món ăn */}
+        {diary.length > 0 && (
+          <Card style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="images" size={16} color={colors.primaryDark} />
+              <Text style={styles.diaryTitle}>{t('diary.title', 'Nhật ký ảnh món ăn')}</Text>
+            </View>
+            <Text style={styles.diarySub}>{t('diary.sub', 'Những món bạn đã chụp và phân tích gần đây.')}</Text>
+            <View style={styles.diaryGrid}>
+              {diary.slice(0, 12).map((it) => {
+                const a = it.analysis || {};
+                const kcal = a.calories != null ? `${Math.round(a.calories)} kcal` : '';
+                let dd = '';
+                try { const d = new Date(it.created_at); dd = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; } catch {}
+                return (
+                  <View key={it.id} style={styles.diaryItem}>
+                    <Image source={{ uri: it.url }} style={styles.diaryImg} />
+                    <View style={{ padding: 7 }}>
+                      <Text style={styles.diaryFood} numberOfLines={1}>{a.food || t('extra.detected', 'Món ăn')}</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}>
+                        <Text style={styles.diaryMeta}><Ionicons name="flame" size={10} color="#e8743b" /> {kcal}</Text>
+                        <Text style={styles.diaryMeta}>{dd}</Text>
+                      </View>
+                      {a.confidence === 'low' && (
+                        <Text style={styles.diaryLowConf}>{t('extra.low_conf', 'Giá trị chỉ mang tính ước lượng.')}</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </Card>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -236,6 +424,14 @@ function WStat({ label, value }) {
 }
 
 const styles = StyleSheet.create({
+  diaryTitle: { fontSize: 15, fontWeight: '700', color: colors.textMain },
+  diarySub: { fontSize: 12.5, color: colors.textSub, marginBottom: 12 },
+  diaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  diaryItem: { width: '47%', borderWidth: 1, borderColor: colors.borderSoft || '#eee', borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface || '#fff' },
+  diaryImg: { width: '100%', aspectRatio: 1, backgroundColor: '#f2f2f2' },
+  diaryFood: { fontSize: 12.5, fontWeight: '700', color: colors.textMain },
+  diaryMeta: { fontSize: 11, color: colors.textSub },
+  diaryLowConf: { fontSize: 10.5, color: '#b8860b', marginTop: 2 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
   hello: { fontSize: 20, fontWeight: '700', color: colors.textMain },
   subHello: { color: colors.textSub, marginTop: 2, fontSize: 12.5 },
@@ -255,4 +451,15 @@ const styles = StyleSheet.create({
   },
   diseaseTagText: { fontSize: 12.5, fontWeight: '600', color: colors.danger },
   note: { textAlign: 'center', color: colors.textSub, marginTop: 6, fontSize: 13 },
+
+  /* thống kê 7 ngày + cảnh báo sức khỏe */
+  weekEmpty: { fontSize: 12.5, color: colors.muted, lineHeight: 18, textAlign: 'center', paddingVertical: 14 },
+  healthBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+  },
+  healthBadgeText: { fontSize: 12.5, fontWeight: '800' },
+  healthSummary: { fontSize: 13.5, color: colors.textMain, lineHeight: 20, marginTop: 10 },
+  healthAdviceLabel: { fontSize: 12, fontWeight: '800', color: colors.primaryDark, marginTop: 2 },
+  healthAdviceText: { flex: 1, fontSize: 13, color: colors.textMain, lineHeight: 19 },
 });
