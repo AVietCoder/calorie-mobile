@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { DonutChart, BarGoalChart, PolarAreaChart, WeekLinesChart } from '../components/Charts';
 import { Card, SectionTitle, Button } from '../components/UI';
-import { colors, radius } from '../theme/colors';
+import { colors, radius, shadow } from '../theme/colors';
 import { DietAPI, StatusAPI, ScheduleAPI, DiaryAPI } from '../api/client';
 import { getLastDays } from '../storage/intake';
 import { useToast } from '../components/Toast';
@@ -168,7 +168,8 @@ export default function DietScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 16 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primary} />}
       >
         {/* Header */}
@@ -432,10 +433,15 @@ const styles = StyleSheet.create({
   diaryFood: { fontSize: 12.5, fontWeight: '700', color: colors.textMain },
   diaryMeta: { fontSize: 11, color: colors.textSub },
   diaryLowConf: { fontSize: 10.5, color: '#b8860b', marginTop: 2 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
-  hello: { fontSize: 20, fontWeight: '700', color: colors.textMain },
-  subHello: { color: colors.textSub, marginTop: 2, fontSize: 12.5 },
-  stat: { flex: 1, backgroundColor: '#fff', borderRadius: radius.lg, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2, marginBottom: 2 },
+  hello: { fontSize: 20, fontWeight: '700', color: colors.textMain, letterSpacing: -0.3 },
+  subHello: { color: colors.textSub, marginTop: 2, fontSize: 12.5, lineHeight: 17 },
+  // Đồng bộ với Card (viền mảnh + đổ bóng nhẹ) để ô số liệu không bị "phẳng/thô".
+  stat: {
+    flex: 1, backgroundColor: colors.card, borderRadius: radius.lg, padding: 14,
+    flexDirection: 'row', gap: 10, alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, ...shadow.xs,
+  },
   statIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   statLabel: { fontSize: 11, color: colors.textSub, fontWeight: '600' },
   statValue: { fontSize: 15, fontWeight: '700', color: colors.textMain },

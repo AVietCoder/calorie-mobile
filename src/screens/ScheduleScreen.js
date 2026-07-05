@@ -19,7 +19,7 @@ import { ReminderBell } from '../components/HeaderWidgets';
 import MealDetailModal from '../components/MealDetailModal';
 import {
   getToday, setEaten, setSkipped, addExtra, removeExtra,
-  computeTotals, parseMacro, todayPlanDay,
+  computeTotals, parseMacro, todayPlanDay, flattenPlan,
 } from '../storage/intake';
 
 const MEAL_ORDER = { 'Sáng': 0, 'Trưa': 1, 'Tối': 2, 'Phụ': 3 };
@@ -66,18 +66,8 @@ export default function ScheduleScreen({ navigation }) {
     setDayIntake({ ...day });
   }, []);
 
-  const flatten = (raw) => {
-    if (!Array.isArray(raw)) return [];
-    const out = [];
-    raw.forEach((entry) => {
-      if (entry && Array.isArray(entry.meals)) {
-        entry.meals.forEach((m) => out.push({ ...m, day: Number(entry.day) }));
-      } else if (entry && (entry.meal || entry.food)) {
-        out.push({ ...entry, day: Number(entry.day) });
-      }
-    });
-    return out;
-  };
+  // Dùng chung helper flattenPlan (storage/intake) — cùng logic với Trợ lý giọng nói.
+  const flatten = flattenPlan;
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);

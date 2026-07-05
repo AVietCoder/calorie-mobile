@@ -220,6 +220,13 @@ export const ChatAPI = {
     await setCache(CHAT_CACHE_KEY, list);
     return list;
   },
+
+  // (TÙY CHỌN — chưa bật) Endpoint tool-calling cho Trợ lý: LLM tự chọn "công cụ" và
+  // trả về hành động có cấu trúc. Handler NẰM Ở REPO BACKEND (không có trong workspace
+  // mobile này) → client đã sẵn sàng, chỉ bật khi backend triển khai /agent. Hiện tại
+  // Trợ lý định tuyến ý định phía client (src/agent/intents.js) nên KHÔNG gọi hàm này.
+  agent: (message, context) =>
+    apiFetch('/agent', { method: 'POST', body: JSON.stringify({ message, context: context || {} }) }),
 };
 
 // /diet-info trả { success, data:{ calories, bmr, tdee, macros:{protein,fat,carbs}, profile } }

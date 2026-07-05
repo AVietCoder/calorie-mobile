@@ -73,14 +73,25 @@ export function ReminderProvider({ children }) {
             if (d <= new Date()) d.setDate(d.getDate() + 1);
             return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: d, ...channel };
           })();
-      const isMed = rem.type === 'med';
-      return await Notifications.scheduleNotificationAsync({
-        content: {
-          title: isMed ? t('rem.fire_med', '💊 Đến giờ uống thuốc') : t('rem.fire_meal', '🍽️ Đến giờ ăn'),
-          body: rem.label
-            || (isMed ? t('rem.alarm_default_med', 'Đã đến giờ uống thuốc của bạn.')
-                      : t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.')),
+      const meta = {
+        med: {
+          title: t('rem.fire_med', '💊 Đến giờ uống thuốc'),
+          body: t('rem.alarm_default_med', 'Đã đến giờ uống thuốc của bạn.'),
         },
+        water: {
+          title: t('rem.fire_water', '💧 Đến giờ uống nước'),
+          body: t('rem.alarm_default_water', 'Hãy uống một cốc nước nhé.'),
+        },
+        meal: {
+          title: t('rem.fire_meal', '🍽️ Đến giờ ăn'),
+          body: t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.'),
+        },
+      }[rem.type] || {
+        title: t('rem.fire_meal', '🍽️ Đến giờ ăn'),
+        body: t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.'),
+      };
+      return await Notifications.scheduleNotificationAsync({
+        content: { title: meta.title, body: rem.label || meta.body },
         trigger,
       });
     } catch { return null; }

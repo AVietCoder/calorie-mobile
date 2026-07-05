@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
+import { navigationRef } from './navigationRef';
 
 import LandingScreen from '../screens/LandingScreen';
 import SignInScreen from '../screens/SignInScreen';
@@ -99,7 +100,7 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {token ? <MainTabs /> : <AuthNavigator />}
     </NavigationContainer>
   );

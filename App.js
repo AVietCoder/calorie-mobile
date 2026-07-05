@@ -7,7 +7,9 @@ import { LanguageProvider } from './src/i18n';
 import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/components/Toast';
 import { ReminderProvider } from './src/context/ReminderContext';
+import { AssistantProvider } from './src/context/AssistantContext';
 import { AlarmModal } from './src/components/ReminderModal';
+import AssistantOverlay from './src/components/AssistantOverlay';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -18,10 +20,14 @@ export default function App() {
           <AuthProvider>
             <ToastProvider>
               <ReminderProvider>
-                <StatusBar style="dark" />
-                <RootNavigator />
-                {/* Chuông báo nhắc nhở nổi trên toàn app */}
-                <AlarmModal />
+                <AssistantProvider>
+                  <StatusBar style="dark" />
+                  <RootNavigator />
+                  {/* Chuông báo nhắc nhở nổi trên toàn app */}
+                  <AlarmModal />
+                  {/* Trợ lý giọng nói nổi trên toàn app (nút mic + bảng trạng thái) */}
+                  <AssistantOverlay />
+                </AssistantProvider>
               </ReminderProvider>
             </ToastProvider>
           </AuthProvider>

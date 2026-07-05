@@ -142,6 +142,24 @@ export async function getLastDays(n = 7) {
 }
 
 /**
+ * Làm phẳng plan tuần (dạng [{day, meals:[...]}] hoặc [{day, meal, ...}]) thành mảng phẳng
+ * [{day, meal, food, calories, protein, fat, carbs, ...}]. Dùng chung cho màn Kế hoạch và
+ * Trợ lý giọng nói (trả lời "còn bao nhiêu calo hôm nay").
+ */
+export function flattenPlan(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.forEach((entry) => {
+    if (entry && Array.isArray(entry.meals)) {
+      entry.meals.forEach((m) => out.push({ ...m, day: Number(entry.day) }));
+    } else if (entry && (entry.meal || entry.food)) {
+      out.push({ ...entry, day: Number(entry.day) });
+    }
+  });
+  return out;
+}
+
+/**
  * Tính tổng đã nạp hôm nay = các bữa (thuộc plan-day hôm nay) đã tick + món thêm.
  * @param {Array} flatPlan mảng phẳng [{day, meal, calories, protein, fat, carbs}]
  */

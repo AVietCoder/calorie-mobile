@@ -289,8 +289,8 @@
       "guide.toc_faq": "Câu hỏi thường gặp",
 
       /* ----- guide: shared labels ----- */
-      "guide.label_tip": "Mẹo:",
-      "guide.label_note": "Lưu ý:",
+      "guide.label_tip": "Mẹo",
+      "guide.label_note": "Lưu ý",
 
       /* ----- guide: hero ----- */
       "guide.intro_title": "Calorie AI là gì?",
@@ -693,8 +693,8 @@
       "guide.toc_faq": "FAQ",
 
       /* ----- guide: shared labels ----- */
-      "guide.label_tip": "Tip:",
-      "guide.label_note": "Note:",
+      "guide.label_tip": "Tip",
+      "guide.label_note": "Note",
 
       /* ----- guide: hero ----- */
       "guide.intro_title": "What is Calorie AI?",

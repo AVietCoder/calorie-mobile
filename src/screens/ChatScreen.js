@@ -1,35 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet,
+  ActivityIndicator, FlatList, Keyboard, Platform, Pressable, StyleSheet,
   Text, TextInput, View, Image, Animated, ScrollView, Modal, Alert, Linking
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ChatAPI, ScheduleAPI } from '../api/client';
 import { useToast } from '../components/Toast';
 import { useI18n } from '../i18n';
 import Markdown from '../components/Markdown';
-import { colors, radius } from '../theme/colors';
+import { colors, radius, shadow } from '../theme/colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator'; // cần cài thêm
-
-// Voice input (Web Speech API trên web) — module native, require phòng hờ để app
-// không crash khi chạy Expo Go / build cũ chưa có native module.
-let Speech = null;
-try { Speech = require('expo-speech-recognition'); } catch {}
-
-const cleanDisplayContent = (content) => {
-  if (!content) return "";
-  return String(content)
-    .replace(/<message>[\s\S]*?<\/message>/gi, '')
-    .replace(/<data>[\s\S]*?<\/data>/gi, '')
-    .replace(/<image>[\s\S]*?<\/image>/gi, '')
-    .replace(/<error>[\s\S]*?<\/error>/gi, '')
-    .replace(/<deleted>[\s\S]*?<deleted>/gi, '')
-    .replace(/\n{3,}/g, '\n\n') // Thu gọn khoảng trống thừa
-    .trim();
-};
+// Voice input + làm sạch nội dung — tách ra module dùng chung với Trợ lý giọng nói.
+import { createSpeechSession, isSpeechAvailable } from '../voice/stt';
+import { cleanDisplayContent, extractData } from '../voice/textClean';
 
 /* ─── Typing Dots ─────────────────────────────────────────── */
 function TypingDots() {
@@ -230,12 +216,36 @@ function NutritionSidebar({ data, imageUri, description, onClose }) {
   );
 }
 
+/* ─── Keyboard offset hook ────────────────────────────────────
+ * App bật edge-to-edge (android/gradle.properties: edgeToEdgeEnabled=true) nên
+ * windowSoftInputMode="adjustResize" KHÔNG còn co cửa sổ → bàn phím che thanh
+ * nhập. KeyboardAvoidingView với behavior=undefined trên Android cũng vô tác
+ * dụng. Ta tự đo chiều cao bàn phím và đẩy thanh nhập lên đúng bằng lượng đó
+ * (đồng thời FlatList co lại theo → không bị chồng lên). Hoạt động cho cả iOS.
+ */
+function useKeyboardOffset() {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (e) => setHeight(e?.endCoordinates?.height || 0);
+    const onHide = () => setHeight(0);
+    const s = Keyboard.addListener(showEvt, onShow);
+    const h = Keyboard.addListener(hideEvt, onHide);
+    return () => { s.remove(); h.remove(); };
+  }, []);
+  return height;
+}
+
 /* ─── Main Screen ─────────────────────────────────────────── */
 import { useAuthGuard } from '../hooks/useAuthGuard';
 
 export default function ChatScreen({ navigation, route }) {
   const { checking } = useAuthGuard();
   const { t, tn, lang } = useI18n();
+
+  const insets = useSafeAreaInsets();
+  const kbHeight = useKeyboardOffset();
 
   const toast = useToast();
   const [messages, setMessages] = useState([
@@ -267,20 +277,14 @@ export default function ChatScreen({ navigation, route }) {
   const sessionPhotosRef = useRef([]);
   const pendingB64Ref = useRef(null);
 
-  // ── Voice input (port từ web chat.js — Web Speech API) ──
+  // ── Voice input (dùng chung module src/voice/stt.js — hành vi giữ nguyên như trước) ──
   const [isRecording, setIsRecording] = useState(false);
-  const voiceSubsRef = useRef([]);
-
-  const _clearVoiceSubs = () => {
-    voiceSubsRef.current.forEach((s) => { try { s.remove(); } catch {} });
-    voiceSubsRef.current = [];
-  };
+  const voiceSessionRef = useRef(null);
 
   // Dừng engine nhận giọng, thoát trạng thái recording — GIỮ text trong input (giống web)
   const stopVoice = useCallback(() => {
     setIsRecording(false);
-    _clearVoiceSubs();
-    try { Speech?.ExpoSpeechRecognitionModule?.stop(); } catch {}
+    try { voiceSessionRef.current?.stop(); } catch {}
   }, []);
 
   // Nút X: xóa text và thoát (giống web cancelVoice)
@@ -289,50 +293,29 @@ export default function ChatScreen({ navigation, route }) {
   const confirmVoice = useCallback(() => { stopVoice(); }, [stopVoice]);
 
   const startVoice = useCallback(async () => {
-    const mod = Speech?.ExpoSpeechRecognitionModule;
-    if (!mod) {
+    if (!isSpeechAvailable()) {
       toast.show(t('chat.voice_unsupported', 'Thiết bị của bạn không hỗ trợ nhận giọng nói.'), 'error');
       return;
     }
-    try {
-      const perm = await mod.requestPermissionsAsync();
-      if (!perm.granted) {
-        toast.show(t('chat.voice_denied', 'Vui lòng cấp quyền microphone.'), 'error');
-        return;
-      }
-      _clearVoiceSubs();
-      voiceSubsRef.current.push(
-        mod.addListener('result', (e) => {
-          const transcript = (e.results || []).map((r) => r.transcript).join('');
-          setInput(transcript);
-          // Kết quả final: dừng ghi âm nhưng GIỮ text, không tự gửi (giống web)
-          if (e.isFinal) stopVoice();
-        }),
-      );
-      voiceSubsRef.current.push(
-        mod.addListener('error', (e) => {
-          stopVoice();
-          const msgs = {
-            'not-allowed': t('chat.voice_denied', 'Vui lòng cấp quyền microphone.'),
-            'no-speech': t('chat.voice_nospeech', 'Không nghe thấy gì, thử lại nhé.'),
-            network: t('chat.voice_neterr', 'Lỗi mạng khi nhận giọng nói.'),
-          };
-          toast.show(msgs[e.error] || ('Lỗi: ' + e.error), 'error');
-        }),
-      );
-      voiceSubsRef.current.push(
-        mod.addListener('end', () => { setIsRecording(false); }),
-      );
-      mod.start({
-        lang: lang === 'en' ? 'en-US' : 'vi-VN',
-        interimResults: true,
-        continuous: false,
-      });
-      setIsRecording(true);
-    } catch (e) {
-      stopVoice();
-      toast.show('Lỗi: ' + (e?.message || e), 'error');
-    }
+    const session = createSpeechSession({
+      lang,
+      onPartial: (transcript) => setInput(transcript),
+      // Kết quả final: dừng ghi âm nhưng GIỮ text, không tự gửi (giống web)
+      onFinal: (transcript) => { setInput(transcript); stopVoice(); },
+      onError: (code) => {
+        stopVoice();
+        const msgs = {
+          'not-allowed': t('chat.voice_denied', 'Vui lòng cấp quyền microphone.'),
+          'no-speech': t('chat.voice_nospeech', 'Không nghe thấy gì, thử lại nhé.'),
+          network: t('chat.voice_neterr', 'Lỗi mạng khi nhận giọng nói.'),
+        };
+        toast.show(msgs[code] || ('Lỗi: ' + code), 'error');
+      },
+      onEnd: () => setIsRecording(false),
+    });
+    voiceSessionRef.current = session;
+    const ok = await session.start();
+    if (ok) setIsRecording(true);
   }, [lang, stopVoice, toast, t]);
 
   // Nút mic: bắt đầu ghi âm (bấm khi đang ghi = confirmVoice — giống web toggleVoice)
@@ -348,6 +331,9 @@ export default function ChatScreen({ navigation, route }) {
   const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120);
   }, []);
+
+  // Bàn phím mở → cuộn xuống cuối để tin nhắn mới nhất không bị thanh nhập che.
+  useEffect(() => { if (kbHeight > 0) scrollToEnd(); }, [kbHeight, scrollToEnd]);
 
   useEffect(() => {
     (async () => {
@@ -462,12 +448,6 @@ const pickImage = () => {
   );
 };
 
-
-  const extractData = (text = '') => {
-    const match = String(text).match(/<data>([\s\S]*?)<\/data>/i);
-    if (!match) return null;
-    try { return JSON.parse(match[1]); } catch { return null; }
-  };
 
   const cleanReply = (text = '') => cleanDisplayContent(text);
 
@@ -666,10 +646,7 @@ const pickImage = () => {
     </View>
   </Modal>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={80}>
+      <View style={{ flex: 1, paddingBottom: kbHeight > 0 ? kbHeight : insets.bottom }}>
         {loadingHistory && (
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingBox}>
@@ -680,10 +657,12 @@ const pickImage = () => {
         )}
         <FlatList
           ref={listRef}
+          style={{ flex: 1 }}
           data={messages}
           keyExtractor={m => m.id}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
+          contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
           onContentSizeChange={scrollToEnd}
+          keyboardShouldPersistTaps="handled"
           renderItem={renderItem}
           ListFooterComponent={sending ? <TypingDots /> : null}
         />
@@ -739,7 +718,7 @@ const pickImage = () => {
             </>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -850,9 +829,10 @@ const styles = StyleSheet.create({
   /* Input */
   inputWrap: {
     flexDirection: 'row', gap: 8, padding: 8, paddingLeft: 14,
-    backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border,
-    alignItems: 'center', borderRadius: 999, margin: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center', borderRadius: 999, marginHorizontal: 12, marginTop: 6, marginBottom: 10,
     borderWidth: 1, borderColor: colors.border,
+    ...shadow.sm,
   },
   uploadBtn: {
     width: 36, height: 36, borderRadius: 18,

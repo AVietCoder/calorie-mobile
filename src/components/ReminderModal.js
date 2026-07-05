@@ -35,9 +35,14 @@ export function ReminderManager({ visible, onClose }) {
 
   const onAdd = async () => {
     const tstr = fmtTime(time);
+    const defLabel = tab === 'med'
+      ? t('rem.tab_med', 'Uống thuốc')
+      : tab === 'water'
+        ? t('rem.tab_water', 'Uống nước')
+        : t('rem.tab_meal', 'Bữa ăn');
     await add({
       type: tab,
-      label: label.trim() || (tab === 'med' ? t('rem.tab_med', 'Uống thuốc') : t('rem.tab_meal', 'Bữa ăn')),
+      label: label.trim() || defLabel,
       time: tstr,
       repeat,
     });
@@ -61,7 +66,11 @@ export function ReminderManager({ visible, onClose }) {
           </View>
 
           <View style={styles.tabs}>
-            {[['meal', t('rem.tab_meal', 'Bữa ăn'), 'restaurant'], ['med', t('rem.tab_med', 'Uống thuốc'), 'medkit']].map(
+            {[
+              ['meal', t('rem.tab_meal', 'Bữa ăn'), 'restaurant'],
+              ['med', t('rem.tab_med', 'Uống thuốc'), 'medkit'],
+              ['water', t('rem.tab_water', 'Uống nước'), 'water'],
+            ].map(
               ([id, lab, icon]) => (
                 <Pressable
                   key={id}
@@ -102,7 +111,11 @@ export function ReminderManager({ visible, onClose }) {
             <TextInput
               value={label}
               onChangeText={setLabel}
-              placeholder={tab === 'med' ? t('rem.label_med_ph', 'VD: Uống vitamin D') : t('rem.label_meal_ph', 'VD: Ăn sáng')}
+              placeholder={tab === 'med'
+                ? t('rem.label_med_ph', 'VD: Uống vitamin D')
+                : tab === 'water'
+                  ? t('rem.label_water_ph', 'VD: Uống 1 cốc nước')
+                  : t('rem.label_meal_ph', 'VD: Ăn sáng')}
               placeholderTextColor={colors.muted}
               style={styles.input}
             />
@@ -150,7 +163,28 @@ export function ReminderManager({ visible, onClose }) {
 export function AlarmModal() {
   const { t } = useI18n();
   const { alarm, dismissAlarm } = useReminders();
-  const isMed = alarm?.type === 'med';
+  const type = alarm?.type || 'meal';
+  const meta = {
+    med: {
+      icon: 'pill', bg: '#C9A227',
+      title: t('rem.fire_med', '💊 Đến giờ uống thuốc'),
+      body: t('rem.alarm_default_med', 'Đã đến giờ uống thuốc của bạn.'),
+    },
+    water: {
+      icon: 'cup-water', bg: colors.info,
+      title: t('rem.fire_water', '💧 Đến giờ uống nước'),
+      body: t('rem.alarm_default_water', 'Hãy uống một cốc nước nhé.'),
+    },
+    meal: {
+      icon: 'silverware-fork-knife', bg: colors.primary,
+      title: t('rem.fire_meal', '🍽️ Đến giờ ăn'),
+      body: t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.'),
+    },
+  }[type] || {
+    icon: 'silverware-fork-knife', bg: colors.primary,
+    title: t('rem.fire_meal', '🍽️ Đến giờ ăn'),
+    body: t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.'),
+  };
 
   return (
     <Modal visible={!!alarm} transparent animationType="fade" onRequestClose={dismissAlarm}>
@@ -159,18 +193,12 @@ export function AlarmModal() {
           <Pressable style={styles.alarmX} onPress={dismissAlarm} hitSlop={10}>
             <Ionicons name="close" size={22} color={colors.textSub} />
           </Pressable>
-          <View style={[styles.alarmIcon, isMed && { backgroundColor: '#C9A227' }]}>
-            <MaterialCommunityIcons name={isMed ? 'pill' : 'silverware-fork-knife'} size={36} color="#fff" />
+          <View style={[styles.alarmIcon, { backgroundColor: meta.bg }]}>
+            <MaterialCommunityIcons name={meta.icon} size={36} color="#fff" />
           </View>
           <Text style={styles.alarmNow}>{t('rem.alarm_now', 'BÂY GIỜ')}</Text>
-          <Text style={styles.alarmTitle}>
-            {isMed ? t('rem.fire_med', '💊 Đến giờ uống thuốc') : t('rem.fire_meal', '🍽️ Đến giờ ăn')}
-          </Text>
-          <Text style={styles.alarmBody}>
-            {alarm?.label
-              || (isMed ? t('rem.alarm_default_med', 'Đã đến giờ uống thuốc của bạn.')
-                        : t('rem.alarm_default_meal', 'Đã đến giờ ăn của bạn.'))}
-          </Text>
+          <Text style={styles.alarmTitle}>{meta.title}</Text>
+          <Text style={styles.alarmBody}>{alarm?.label || meta.body}</Text>
           <Text style={styles.alarmTime}>{alarm?.time || ''}</Text>
           <Pressable onPress={dismissAlarm} style={styles.alarmDismiss}>
             <Text style={styles.alarmDismissText}>{t('rem.alarm_dismiss', 'Đã hiểu')}</Text>

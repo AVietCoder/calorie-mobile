@@ -1,10 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.INTERNET"/>
+  <!-- Camera: cần cho ImagePicker.launchCameraAsync (Chụp ảnh món ăn). Thiếu quyền này
+       thì nút "Chụp ảnh" luôn thất bại trên Android. -->
+  <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
+  <!-- Android 13+ (API 33+): READ_EXTERNAL_STORAGE bị bỏ qua → phải xin READ_MEDIA_IMAGES
+       cho thư viện ảnh. Thiếu quyền này thì chọn ảnh từ thư viện hỏng trên máy Android mới. -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
+  <!-- Máy không có camera vẫn cài được app (camera không bắt buộc). -->
+  <uses-feature android:name="android.hardware.camera" android:required="false"/>
+  <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
