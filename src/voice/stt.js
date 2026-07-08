@@ -53,7 +53,11 @@ export function createSpeechSession({
 
       clearSubs();
       subs.push(mod.addListener('result', (e) => {
-        const transcript = (e.results || []).map((r) => r.transcript).join('');
+        // e.results = danh sách CÁC PHƯƠNG ÁN (alternatives) của CÙNG một câu, xếp theo
+        // độ tin cậy — KHÔNG phải các đoạn nối tiếp. Trước đây .map().join('') nối tất cả
+        // phương án lại → transcript bị lặp ("…bag of chips…bath of chips…bite of chips…").
+        // Chỉ lấy PHƯƠNG ÁN TỐT NHẤT (phần tử đầu).
+        const transcript = e.results?.[0]?.transcript ?? '';
         onPartial?.(transcript);
         if (e.isFinal) onFinal?.(transcript);
       }));
@@ -65,6 +69,7 @@ export function createSpeechSession({
           lang: lang === 'en' ? 'en-US' : 'vi-VN',
           interimResults,
           continuous,
+          maxAlternatives: 1, // chỉ cần phương án tốt nhất → tránh transcript bị lặp
         });
         return true;
       } catch (e) {
