@@ -7,6 +7,10 @@ import { useI18n } from '../i18n';
 import { LangSwitch } from '../components/HeaderWidgets';
 
 const { width } = Dimensions.get('window');
+// Banner thương hiệu (đồng bộ với web THT-D3: public/banner.png) dùng cho navbar.
+const BANNER_IMG = require('../../assets/banner.png');
+const BANNER_RATIO = 887 / 281; // banner.png là 887×281 (~3.16:1)
+// Ảnh minh hoạ món ăn cho khối hero (giữ như bản gốc).
 const HERO_IMG = 'https://i.pinimg.com/736x/ca/5d/37/ca5d371c8e432a9df5f3de23b40e20ca.jpg';
 
 export default function LandingScreen({ navigation }) {
@@ -14,22 +18,17 @@ export default function LandingScreen({ navigation }) {
 
   return (
     <LinearGradient 
-      colors={[colors.primarySoft || '#eef8f2', colors.bg || '#ffffff']} 
+      colors={[colors.heroBg, colors.bg || '#ffffff']}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 0.5 }} // Vuốt nhẹ gradient ở nửa trên màn hình
       style={{ flex: 1 }}
     >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         
-        {/* Navbar tối giản: Chỉ gồm Logo và Nút chuyển ngôn ngữ */}
+        {/* Navbar tối giản: banner thương hiệu (đã có sẵn icon + chữ Dr.Fit) và Nút chuyển ngôn ngữ */}
         <View style={styles.navbar}>
-          <View style={styles.logoRow}>
-            <View style={styles.logoIconBg}>
-              <Ionicons name="leaf" size={18} color={colors.primary} />
-            </View>
-            <Text style={styles.logoText}>Calorie AI</Text>
-          </View>
-          
+          <Image source={BANNER_IMG} style={styles.navBanner} resizeMode="contain" />
+
           <View style={styles.navRight}>
             <LangSwitch />
           </View>
@@ -54,7 +53,7 @@ export default function LandingScreen({ navigation }) {
           {/* Khối hình ảnh bo góc lớn và đổ bóng sâu */}
           <View style={styles.imageContainer}>
             <Image source={{ uri: HERO_IMG }} style={styles.heroImg} resizeMode="cover" />
-            
+
             {/* Tag nhỏ tinh tế đè lên ảnh tạo chiều sâu */}
             <View style={styles.floatingCard}>
               <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
@@ -70,7 +69,7 @@ export default function LandingScreen({ navigation }) {
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>{t('land.footer', '© 2026 Calorie AI • Phân tích dinh dưỡng thông minh')}</Text>
+        <Text style={styles.footer}>{t('land.footer', '© 2026 Dr.Fit • Phân tích dinh dưỡng thông minh')}</Text>
         
       </ScrollView>
     </LinearGradient>
@@ -90,28 +89,11 @@ const styles = StyleSheet.create({
     paddingTop: 60, // Giữ khoảng cách an toàn với phần tai thỏ
     paddingBottom: 10,
   },
-  logoRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 10 
+  navBanner: {
+    width: 200,
+    height: 200 / BANNER_RATIO,
   },
-  logoIconBg: {
-    backgroundColor: '#fff',
-    padding: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  logoText: { 
-    fontSize: 20, 
-    fontWeight: '900', 
-    color: colors.primaryDark || '#111',
-    letterSpacing: -0.5,
-  },
-  navRight: { 
+  navRight: {
     flexDirection: 'row', 
     alignItems: 'center' 
   },
@@ -174,26 +156,26 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 8,
   },
-  heroImg: { 
-    width: '100%', 
+  heroImg: {
+    width: '100%',
     aspectRatio: 1.1 / 1, // Tỉ lệ ảnh vuông nhẹ rất sang mượt trên mobile
     borderRadius: 32,
   },
   floatingCard: {
-    position: 'absolute', 
-    bottom: 16, 
-    right: 16, 
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 14,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 8, 
+    shadowRadius: 8,
     elevation: 4,
   },
   floatingText: {

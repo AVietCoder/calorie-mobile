@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { LangSwitch } from '../components/HeaderWidgets';
 import { Button, Card, Field } from '../components/UI';
 import { SetupAPI, apiFetch } from '../api/client';
 import { colors, radius } from '../theme/colors';
+import { confirm2 } from '../utils/confirm';
 
 /* ── option lists (label lấy qua i18n trong render) ── */
 const GENDERS = [
@@ -294,13 +295,10 @@ export default function ProfileScreen({ navigation }) {
   const prev = () => { if (step > 0) setStep(step - 1); };
 
   const confirmLogout = () => {
-    Alert.alert(
+    confirm2(
       t('common.logout', 'Đăng xuất'),
       t('m.confirm_logout', 'Bạn chắc chắn muốn đăng xuất?'),
-      [
-        { text: t('m.cancel', 'Huỷ'), style: 'cancel' },
-        { text: t('common.logout', 'Đăng xuất'), style: 'destructive', onPress: logout },
-      ]
+      { cancelText: t('m.cancel', 'Huỷ'), confirmText: t('common.logout', 'Đăng xuất'), destructive: true, onConfirm: logout }
     );
   };
 
@@ -320,8 +318,8 @@ export default function ProfileScreen({ navigation }) {
       {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.brandRow}>
-          <Ionicons name="leaf" size={20} color={colors.primary} />
-          <Text style={styles.brand}>Calorie AI</Text>
+          <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
+          <Text style={styles.brand}>Dr.Fit</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <LangSwitch />
@@ -480,6 +478,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#eee',
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandLogo: { width: 22, height: 22 },
   brand: { fontSize: 16, fontWeight: '800', color: colors.primaryDark },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#dc2626', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '700' },

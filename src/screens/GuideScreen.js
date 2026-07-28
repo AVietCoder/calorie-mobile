@@ -84,7 +84,7 @@ export default function GuideScreen({ navigation }) {
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>{t('guide.intro_title', 'Calorie AI là gì?')}</Text>
+            <Text style={styles.h1}>{t('guide.intro_title', 'Dr.Fit là gì?')}</Text>
             <Text style={styles.sub}>{stripHtml(t('guide.intro_desc', ''))}</Text>
           </View>
           <LangSwitch />

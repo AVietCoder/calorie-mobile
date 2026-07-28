@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View, Pressable,
-  TextInput, Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import {
   getToday, setEaten, setSkipped, addExtra, removeExtra,
   computeTotals, parseMacro, todayPlanDay, flattenPlan,
 } from '../storage/intake';
+import { alertInfo } from '../utils/confirm';
 
 const MEAL_ORDER = { 'Sáng': 0, 'Trưa': 1, 'Tối': 2, 'Phụ': 3 };
 
@@ -247,7 +248,7 @@ export default function ScheduleScreen({ navigation }) {
   const onAnalyzePhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert(t('m.perm_title', 'Cần quyền truy cập'), t('m.perm_lib', 'Calorie AI cần quyền truy cập ảnh.'));
+      alertInfo(t('m.perm_title', 'Cần quyền truy cập'), t('m.perm_lib', 'Dr.Fit cần quyền truy cập ảnh.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({

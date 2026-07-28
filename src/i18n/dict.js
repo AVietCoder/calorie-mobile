@@ -30,7 +30,7 @@
       "land.title2": "Dễ dàng hơn bao giờ hết.",
       "land.desc": "Chỉ cần gửi ảnh hoặc mô tả món ăn, hệ thống sẽ phân tích dinh dưỡng và đưa ra gợi ý phù hợp, đồng thời điều chỉnh kế hoạch ăn uống theo mục tiêu và thói quen thực tế của bạn.",
       "land.cta": "Bắt đầu ngay",
-      "land.footer": "© 2026 Calorie AI. Phân tích dinh dưỡng thông minh.",
+      "land.footer": "© 2026 Dr.Fit. Phân tích dinh dưỡng thông minh.",
 
       /* ----- chat ----- */
       "chat.greeting": "Chào bạn! Hãy gửi tin nhắn hoặc ảnh món ăn, tôi sẽ phân tích giúp bạn.",
@@ -293,8 +293,8 @@
       "guide.label_note": "Lưu ý",
 
       /* ----- guide: hero ----- */
-      "guide.intro_title": "Calorie AI là gì?",
-      "guide.intro_desc": "Calorie AI là trợ lý dinh dưỡng AI hỗ trợ người dùng, đặc biệt là người có bệnh nền, theo dõi và kiểm soát chế độ ăn uống hằng ngày nhằm góp phần hỗ trợ quá trình cải thiện và điều trị bệnh thông qua dinh dưỡng.<br><br>Người dùng chỉ cần nhập thông tin cơ thể và mục tiêu, hệ thống sẽ tự động phân tích, tính toán dinh dưỡng và gợi ý thực đơn phù hợp theo từng tình trạng sức khỏe.",
+      "guide.intro_title": "Dr.Fit là gì?",
+      "guide.intro_desc": "Dr.Fit là trợ lý dinh dưỡng AI hỗ trợ người dùng, đặc biệt là người có bệnh nền, theo dõi và kiểm soát chế độ ăn uống hằng ngày nhằm góp phần hỗ trợ quá trình cải thiện và điều trị bệnh thông qua dinh dưỡng.<br><br>Người dùng chỉ cần nhập thông tin cơ thể và mục tiêu, hệ thống sẽ tự động phân tích, tính toán dinh dưỡng và gợi ý thực đơn phù hợp theo từng tình trạng sức khỏe.",
       "guide.chip_read5": "Đọc trong 5 phút",
       "guide.chip_beginner": "Phù hợp người mới",
       "guide.chip_updated": "Cập nhật liên tục",
@@ -442,7 +442,7 @@
       "land.title2": "Easier than ever before.",
       "land.desc": "Just send a photo or describe your meal — the system analyzes its nutrition, gives tailored suggestions, and adapts your eating plan to your goals and real habits.",
       "land.cta": "Get started",
-      "land.footer": "© 2026 Calorie AI. Smart nutrition analysis.",
+      "land.footer": "© 2026 Dr.Fit. Smart nutrition analysis.",
 
       "chat.greeting": "Hi there! Send a message or a photo of your food and I'll analyze it for you.",
       "chat.placeholder": "Ask me anything about nutrition...",
@@ -697,8 +697,8 @@
       "guide.label_note": "Note",
 
       /* ----- guide: hero ----- */
-      "guide.intro_title": "What is Calorie AI?",
-      "guide.intro_desc": "Calorie AI is an AI nutrition assistant that helps users — especially those with underlying conditions — track and manage their daily diet to support recovery and treatment through nutrition.<br><br>Just enter your body metrics and goals, and the system automatically analyzes, calculates nutrition and suggests menus tailored to each health condition.",
+      "guide.intro_title": "What is Dr.Fit?",
+      "guide.intro_desc": "Dr.Fit is an AI nutrition assistant that helps users — especially those with underlying conditions — track and manage their daily diet to support recovery and treatment through nutrition.<br><br>Just enter your body metrics and goals, and the system automatically analyzes, calculates nutrition and suggests menus tailored to each health condition.",
       "guide.chip_read5": "5-minute read",
       "guide.chip_beginner": "Beginner friendly",
       "guide.chip_updated": "Continuously updated",

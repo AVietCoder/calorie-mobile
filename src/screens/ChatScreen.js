@@ -402,8 +402,8 @@ const ensurePermission = async (kind /* 'library' | 'camera' */) => {
   Alert.alert(
     t('m.perm_title', 'Cần quyền truy cập'),
     kind === 'camera'
-      ? t('m.perm_cam', 'Calorie AI cần quyền dùng camera để chụp món ăn.')
-      : t('m.perm_lib', 'Calorie AI cần quyền truy cập ảnh để bạn chọn món ăn cần phân tích.'),
+      ? t('m.perm_cam', 'Dr.Fit cần quyền dùng camera để chụp món ăn.')
+      : t('m.perm_lib', 'Dr.Fit cần quyền truy cập ảnh để bạn chọn món ăn cần phân tích.'),
     [
       { text: t('m.later', 'Để sau'), style: 'cancel' },
       { text: t('m.open_settings', 'Mở Cài đặt'), onPress: () => Linking.openSettings() },
@@ -607,7 +607,7 @@ const pickImage = () => {
         <MaterialCommunityIcons name="leaf" size={18} color="#fff" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.headerTitle}>Calorie AI</Text>
+        <Text style={styles.headerTitle}>Dr.Fit</Text>
         <Text style={styles.headerSub}>{t('m.online', '● Đang trực tuyến')}</Text>
       </View>
     </View>

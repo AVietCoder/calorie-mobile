@@ -5,6 +5,9 @@ export const colors = {
   primary: '#58A677',
   primaryDark: '#3D7353',
   primarySoft: '#E8F2EC',
+  // Nền gradient hero (Landing/Sign in/Sign up) — riêng với primarySoft vì
+  // primarySoft còn dùng cho chip/nút ở nhiều màn hình khác.
+  heroBg: '#F0FDF4',
 
   // Surfaces
   bg: '#F5F7F5',

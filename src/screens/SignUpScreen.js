@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Field } from '../components/UI';
 import { colors, radius } from '../theme/colors';
@@ -8,6 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { useI18n } from '../i18n';
 import { LangSwitch } from '../components/HeaderWidgets';
+import { isValidBirthYear, isValidHeight, isValidWeight } from '../utils/bodyMetrics';
+
+const BANNER_RATIO = 887 / 281; // assets/banner.png là 887×281 (~3.16:1)
+const BANNER_W = 250;
 
 export default function SignUpScreen({ navigation }) {
   const { register } = useAuth();
@@ -21,6 +24,19 @@ export default function SignUpScreen({ navigation }) {
     const { username, password, birthYear, weight, height } = form;
     if (!username || !password || !birthYear || !weight || !height) {
       toast.show(t('m.fill_all', 'Vui lòng nhập đầy đủ'), 'warning');
+      return;
+    }
+    // Cảnh báo nếu năm sinh/chiều cao/cân nặng không hợp lý cho một con người.
+    if (!isValidBirthYear(birthYear)) {
+      toast.show(t('m.invalid_birth_year', 'Năm sinh không hợp lệ.'), 'warning');
+      return;
+    }
+    if (!isValidHeight(height)) {
+      toast.show(t('m.invalid_height', 'Chiều cao phải nằm trong khoảng 80 - 250 cm.'), 'warning');
+      return;
+    }
+    if (!isValidWeight(weight)) {
+      toast.show(t('m.invalid_weight', 'Cân nặng phải nằm trong khoảng 20 - 300 kg.'), 'warning');
       return;
     }
     setLoading(true);
@@ -38,10 +54,9 @@ export default function SignUpScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        <LinearGradient colors={[colors.primarySoft, colors.bg]} style={styles.hero}>
+        <LinearGradient colors={[colors.heroBg, colors.bg]} style={styles.hero}>
           <View style={{ position: 'absolute', top: 50, right: 16 }}><LangSwitch /></View>
-          <View style={styles.logoBadge}><Ionicons name="leaf" size={28} color={colors.primary} /></View>
-          <Text style={styles.brand}>Calorie AI</Text>
+          <Image source={require('../../assets/banner.png')} style={styles.banner} resizeMode="contain" />
           <Text style={styles.welcome}>{t('auth.signup_title', 'Tạo tài khoản mới')}</Text>
           <Text style={styles.sub}>{t('auth.signup_sub', 'Bắt đầu hành trình dinh dưỡng của bạn')}</Text>
         </LinearGradient>
@@ -80,8 +95,7 @@ export default function SignUpScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   hero: { paddingTop: 70, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
-  logoBadge: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  brand: { fontSize: 26, fontWeight: '800', color: colors.primaryDark },
+  banner: { width: BANNER_W, height: BANNER_W / BANNER_RATIO, marginBottom: 4 },
   welcome: { fontSize: 22, fontWeight: '700', color: colors.textMain, marginTop: 18 },
   sub: { color: colors.textSub, marginTop: 4 },
   card: { backgroundColor: '#fff', marginHorizontal: 16, marginTop: -20, borderRadius: radius.xl, padding: 22,
