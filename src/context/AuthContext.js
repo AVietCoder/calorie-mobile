@@ -1,8 +1,8 @@
 // src/context/AuthContext.js
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  AuthAPI, setToken, setRefreshToken, setExpiresAt, setUserId,
-  getToken, getUserId, clearAuth, setOnAuthError,
+  AuthAPI, AccountAPI, setToken, setRefreshToken, setExpiresAt, setUserId,
+  getToken, getUserId, clearAuth, clearLocalUserData, setOnAuthError,
 } from '../api/client';
 
 const AuthContext = createContext(null);
@@ -57,8 +57,32 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  /**
+   * Xoá tài khoản vĩnh viễn rồi dọn sạch phiên tại máy.
+   *
+   * KHÔNG tự đặt token về null ở đây: màn Cài đặt cần hiện màn "đã xoá xong"
+   * trước, mà đặt token null là RootNavigator lập tức đá về luồng đăng nhập và
+   * người dùng không kịp thấy gì. Việc chuyển màn để bên gọi quyết định bằng
+   * `finishDeletion()`.
+   *
+   * Dữ liệu cục bộ (khẩu phần đã ăn, nhắc nhở) xoá luôn — chúng thuộc về tài
+   * khoản vừa bị xoá, để lại thì người đăng nhập sau trên cùng máy sẽ thấy.
+   */
+  const deleteAccount = useCallback(async () => {
+    const res = await AccountAPI.deleteAccount();
+    try { await clearAuth(); } catch {}
+    try { await clearLocalUserData(); } catch {}
+    return res;
+  }, []);
+
+  /** Rời khỏi phiên sau khi người dùng đã xem màn thành công. */
+  const finishDeletion = useCallback(() => {
+    setTokenState(null);
+    setUser(null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, deleteAccount, finishDeletion }}>
       {children}
     </AuthContext.Provider>
   );

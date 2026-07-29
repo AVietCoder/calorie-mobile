@@ -25,6 +25,28 @@ export async function clearAuth() {
   await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_KEY, EXPIRES_KEY, USER_ID_KEY, CHAT_CACHE_KEY, PLAN_CACHE_KEY]);
 }
 
+/**
+ * Xoá dữ liệu CỦA TÀI KHOẢN còn lưu trên máy — dùng khi xoá tài khoản vĩnh viễn.
+ *
+ * Khác `clearAuth` (chỉ dọn phiên đăng nhập): hàm này gỡ cả khẩu phần đã ăn và
+ * danh sách nhắc nhở, vốn lưu theo `<key>_<uid>`. Không lấy uid rồi ghép chuỗi
+ * mà quét theo tiền tố, để vẫn chạy đúng khi clearAuth đã xoá mất uid.
+ *
+ * CỐ Ý GIỮ LẠI `calorie_ai_lang` và các tuỳ chọn giao diện (vị trí nút trợ lý,
+ * bật/tắt wake-word): đó là thiết lập của THIẾT BỊ, không phải dữ liệu cá nhân —
+ * xoá đi chỉ khiến máy đột ngột đổi về tiếng mặc định mà chẳng bảo vệ được gì.
+ */
+export async function clearLocalUserData() {
+  const OWNED_PREFIXES = ['calorie_ai_intake_', 'calorie_ai_reminders_'];
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const doomed = keys.filter((k) => OWNED_PREFIXES.some((p) => k.startsWith(p)));
+    if (doomed.length) await AsyncStorage.multiRemove(doomed);
+  } catch {
+    /* storage hỏng — tài khoản đã bị xoá ở server nên vẫn an toàn */
+  }
+}
+
 // ==== Auto-refresh access token (port từ web public/session.js) ====
 // Supabase access_token hết hạn sau ~1h. Khi đăng nhập ta lưu thêm refresh_token +
 // expires_at rồi tự gọi /auth (action=refresh) TRƯỚC khi hết hạn 5 phút, tránh việc
@@ -116,7 +138,14 @@ export async function apiFetch(path, options = {}, _retried = false) {
       await new Promise((r) => setTimeout(r, 800));
       res = await fetchWithTimeout(url, { ...options, headers });
     } catch (e2) {
-      throw new Error(e2.message || 'Không thể kết nối máy chủ. Kiểm tra mạng hoặc API URL.');
+      // Gắn CỜ chứ không để bên gọi đoán qua nội dung chuỗi: mỗi nền tảng ném
+      // một câu khác nhau ("Failed to fetch" trên web, "Network request failed"
+      // trên native, "Hết thời gian chờ máy chủ." khi timeout), nên so khớp
+      // chuỗi sẽ sai ở đúng lúc cần đúng nhất.
+      const err = new Error('Không thể kết nối máy chủ. Kiểm tra mạng hoặc API URL.');
+      err.isNetworkError = true;
+      err.cause = e2;
+      throw err;
     }
   }
 
@@ -164,6 +193,32 @@ export const AuthAPI = {
   logout: () =>
     apiFetch('/auth', { method: 'POST', body: JSON.stringify({ action: 'logout' }) })
       .catch(() => null), // server lỗi vẫn cho client logout
+};
+
+/** Dấu hiệu "không gọi tới được máy chủ" — apiFetch ném đúng chuỗi này sau khi
+ *  đã tự thử lại một lần. Dùng để phân biệt mất mạng với lỗi phía server. */
+export const OFFLINE_HINT = 'Không thể kết nối máy chủ';
+export const isOfflineError = (err) => String(err?.message || '').includes(OFFLINE_HINT);
+
+export const AccountAPI = {
+  /**
+   * Xoá tài khoản vĩnh viễn. Server lấy id người dùng TỪ TOKEN, không nhận
+   * tham số — nên không có cách nào gửi nhầm id của người khác.
+   *
+   * Một số WebView/proxy chặn method DELETE; server chấp nhận cả POST kèm
+   * action tương đương nên ta lùi về đó thay vì báo hỏng.
+   */
+  deleteAccount: async () => {
+    try {
+      return await apiFetch('/account', { method: 'DELETE' });
+    } catch (err) {
+      if (isOfflineError(err)) throw err;         // mất mạng thì thử lại cũng vô ích
+      return apiFetch('/account', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete_account' }),
+      });
+    }
+  },
 };
 
 export const StatusAPI = {

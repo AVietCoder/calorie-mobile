@@ -323,6 +323,16 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <LangSwitch />
+          {/* Hồ sơ → Cài đặt → Xoá tài khoản: đường dẫn nêu ở /delete-account
+              (URL nộp cho Google Play) nên không được đổi tuỳ tiện. */}
+          <Pressable
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.settingsBtn}
+            hitSlop={8}
+            accessibilityLabel={t('set.title', 'Cài đặt')}
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.textSub} />
+          </Pressable>
           <Pressable onPress={confirmLogout} style={styles.logoutBtn}>
             <Ionicons name="log-out-outline" size={16} color="#fff" />
             <Text style={styles.logoutText}>{t('common.logout', 'Đăng xuất')}</Text>
@@ -480,6 +490,7 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brandLogo: { width: 22, height: 22 },
   brand: { fontSize: 16, fontWeight: '800', color: colors.primaryDark },
+  settingsBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#dc2626', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   extendBanner: {

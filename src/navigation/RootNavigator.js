@@ -18,8 +18,10 @@ import ChatScreen from '../screens/ChatScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import GuideScreen from '../screens/GuideScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const AuthStack = createNativeStackNavigator();
+const MainStack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
 
 function AuthNavigator() {
@@ -88,6 +90,22 @@ function MainTabs() {
   );
 }
 
+/**
+ * Stack bọc ngoài các tab.
+ *
+ * Cần thiết để Cài đặt mở ĐÈ LÊN tab bar và có cử chỉ vuốt quay lại — đặt nó
+ * thành một tab thứ sáu sẽ phá bố cục thanh tab, mà nhét vào trong màn Hồ sơ
+ * thì không quay lại được.
+ */
+function MainNavigator() {
+  return (
+    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+      <MainStack.Screen name="Tabs" component={MainTabs} />
+      <MainStack.Screen name="Settings" component={SettingsScreen} />
+    </MainStack.Navigator>
+  );
+}
+
 export default function RootNavigator() {
   const { token, loading } = useAuth();
 
@@ -101,7 +119,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {token ? <MainTabs /> : <AuthNavigator />}
+      {token ? <MainNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
 }
