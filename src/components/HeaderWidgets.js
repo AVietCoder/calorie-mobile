@@ -18,7 +18,12 @@ export function LangSwitch({ style }) {
           <Pressable
             key={l}
             onPress={() => setLang(l)}
-            android_ripple={{ color: 'rgba(88,166,119,0.2)', borderless: true }}
+            // borderless: false — BẮT BUỘC. Với borderless: true, Android tạo
+            // RippleDrawable KHÔNG có mask nên vệt ripple vẽ tràn ra ngoài viên
+            // pill, phủ luôn sang viên bên cạnh. Màu ripple là chính màu thương
+            // hiệu, nên viên KHÔNG được chọn cũng bị nhuộm xanh y hệt viên đang
+            // chọn — nhìn như cả VI lẫn EN cùng active.
+            android_ripple={{ color: 'rgba(88,166,119,0.22)', borderless: false }}
             style={({ pressed }) => [
               styles.langOpt,
               active && styles.langOptActive,
@@ -60,10 +65,13 @@ const styles = StyleSheet.create({
   langWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
     backgroundColor: colors.primarySoft,
     borderRadius: radius.full,
     padding: 3,
+    // Cắt mọi thứ vẽ lọt ra ngoài khung (ripple, bóng của viên đang chọn) —
+    // chốt chặn cuối để không bao giờ lem sang viên bên cạnh nữa.
+    overflow: 'hidden',
   },
   langOpt: {
     paddingHorizontal: 11,
@@ -71,14 +79,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     minWidth: 36,
     alignItems: 'center',
+    // Đặt tường minh thay vì dựa vào "không khai báo": khi đổi qua lại giữa hai
+    // viên, style cũ chắc chắn bị ghi đè chứ không sót lại nền xanh.
+    backgroundColor: 'transparent',
   },
   langOptActive: {
     backgroundColor: colors.primary,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+    // KHÔNG dùng elevation ở đây. Trên Android elevation vẽ bóng thật RA NGOÀI
+    // biên view; hai viên chỉ cách nhau vài px nên bóng đổ thẳng sang viên kia,
+    // làm nó trông cũng có nền. Ngoài ra shadowOffset/Opacity/Radius chỉ có tác
+    // dụng trên iOS, còn shadowColor thì Android phải từ API 28 mới nhận — nên
+    // bộ thuộc tính cũ vốn không vẽ ra đúng thứ nó định vẽ. Nền xanh đặc so với
+    // nền trong suốt đã đủ tương phản cho một segmented control 2 lựa chọn.
   },
   langText: {
     fontSize: 12,

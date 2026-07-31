@@ -10,7 +10,7 @@ import { LangSwitch } from '../components/HeaderWidgets';
 const { width } = Dimensions.get('window');
 // Banner thương hiệu (đồng bộ với web THT-D3: public/banner.png) dùng cho navbar.
 const BANNER_IMG = require('../../assets/banner.png');
-const BANNER_RATIO = 887 / 281; // banner.png là 887×281 (~3.16:1)
+const BANNER_RATIO = 128 / 67; // banner.png là 887×281 (~3.16:1)
 // Ảnh minh hoạ món ăn cho khối hero (giữ như bản gốc).
 const HERO_IMG = 'https://i.pinimg.com/736x/ca/5d/37/ca5d371c8e432a9df5f3de23b40e20ca.jpg';
 
@@ -26,7 +26,6 @@ export default function LandingScreen({ navigation }) {
 
   // Banner co lại trên máy hẹp để không chèn ép nút đổi ngôn ngữ bên phải.
   const { width: winW } = useWindowDimensions();
-  const bannerW = Math.max(132, Math.min(200, winW - 48 - 96));
 
   return (
     <LinearGradient 
@@ -41,7 +40,7 @@ export default function LandingScreen({ navigation }) {
         <View style={[styles.navbar, { paddingTop: insets.top + 12 }]}>
           <Image
             source={BANNER_IMG}
-            style={[styles.navBanner, { width: bannerW, height: bannerW / BANNER_RATIO }]}
+            style={[styles.navBanner, { width: 128, height: 128 / BANNER_RATIO }]}
             resizeMode="contain"
           />
 
@@ -106,7 +105,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   navBanner: {
-    // width/height đặt inline theo bề rộng màn hình
+    
   },
   navRight: {
     flexDirection: 'row', 
