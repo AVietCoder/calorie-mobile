@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, Dimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, Dimensions, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../theme/colors';
@@ -16,6 +17,17 @@ const HERO_IMG = 'https://i.pinimg.com/736x/ca/5d/37/ca5d371c8e432a9df5f3de23b40
 export default function LandingScreen({ navigation }) {
   const { t } = useI18n();
 
+  /*
+   * Edge-to-edge: nội dung vẽ tràn lên dưới thanh trạng thái, nên khoảng đệm
+   * trên phải lấy từ insets thật thay vì con số cố định — mỗi máy Samsung có
+   * chiều cao thanh trạng thái khác nhau (đổi theo cỡ hiển thị trong Cài đặt).
+   */
+  const insets = useSafeAreaInsets();
+
+  // Banner co lại trên máy hẹp để không chèn ép nút đổi ngôn ngữ bên phải.
+  const { width: winW } = useWindowDimensions();
+  const bannerW = Math.max(132, Math.min(200, winW - 48 - 96));
+
   return (
     <LinearGradient 
       colors={[colors.heroBg, colors.bg || '#ffffff']}
@@ -26,8 +38,12 @@ export default function LandingScreen({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         
         {/* Navbar tối giản: banner thương hiệu (đã có sẵn icon + chữ Dr.Fit) và Nút chuyển ngôn ngữ */}
-        <View style={styles.navbar}>
-          <Image source={BANNER_IMG} style={styles.navBanner} resizeMode="contain" />
+        <View style={[styles.navbar, { paddingTop: insets.top + 12 }]}>
+          <Image
+            source={BANNER_IMG}
+            style={[styles.navBanner, { width: bannerW, height: bannerW / BANNER_RATIO }]}
+            resizeMode="contain"
+          />
 
           <View style={styles.navRight}>
             <LangSwitch />
@@ -82,16 +98,15 @@ const styles = StyleSheet.create({
     paddingBottom: 40 
   },
   navbar: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24, 
-    paddingTop: 60, // Giữ khoảng cách an toàn với phần tai thỏ
+    paddingHorizontal: 24,
+    // paddingTop đặt inline theo insets.top (tai thỏ / thanh trạng thái)
     paddingBottom: 10,
   },
   navBanner: {
-    width: 200,
-    height: 200 / BANNER_RATIO,
+    // width/height đặt inline theo bề rộng màn hình
   },
   navRight: {
     flexDirection: 'row', 

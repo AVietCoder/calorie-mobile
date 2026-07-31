@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
@@ -128,6 +128,14 @@ export default function ProfileScreen({ navigation }) {
   const toast = useToast();
   const { checking } = useAuthGuard();
   const { t } = useI18n();
+
+  /*
+   * Header xếp: thương hiệu + VI/EN + Cài đặt + Đăng xuất ≈ 346px, trong khi máy
+   * Samsung phổ thông chỉ rộng 360dp → hàng bị tràn, nút VI/EN đội các nút khác
+   * ra ngoài mép. Trên máy hẹp bỏ chữ "Đăng xuất", chỉ giữ icon.
+   */
+  const { width } = useWindowDimensions();
+  const isCompact = width < 400;
 
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(INITIAL);
@@ -321,7 +329,7 @@ export default function ProfileScreen({ navigation }) {
           <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
           <Text style={styles.brand}>Dr.Fit</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={styles.headerActions}>
           <LangSwitch />
           {/* Hồ sơ → Cài đặt → Xoá tài khoản: đường dẫn nêu ở /delete-account
               (URL nộp cho Google Play) nên không được đổi tuỳ tiện. */}
@@ -333,9 +341,13 @@ export default function ProfileScreen({ navigation }) {
           >
             <Ionicons name="settings-outline" size={18} color={colors.textSub} />
           </Pressable>
-          <Pressable onPress={confirmLogout} style={styles.logoutBtn}>
+          <Pressable
+            onPress={confirmLogout}
+            style={[styles.logoutBtn, isCompact && styles.logoutBtnCompact]}
+            accessibilityLabel={t('common.logout', 'Đăng xuất')}
+          >
             <Ionicons name="log-out-outline" size={16} color="#fff" />
-            <Text style={styles.logoutText}>{t('common.logout', 'Đăng xuất')}</Text>
+            {!isCompact && <Text style={styles.logoutText}>{t('common.logout', 'Đăng xuất')}</Text>}
           </Pressable>
         </View>
       </View>
@@ -487,11 +499,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
     borderBottomWidth: 1, borderBottomColor: '#eee',
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Thương hiệu nhường chỗ trước; cụm nút bên phải giữ nguyên kích thước.
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   brandLogo: { width: 22, height: 22 },
   brand: { fontSize: 16, fontWeight: '800', color: colors.primaryDark },
   settingsBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#dc2626', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  logoutBtnCompact: { width: 34, height: 34, paddingHorizontal: 0, paddingVertical: 0, gap: 0, justifyContent: 'center' },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   extendBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.primarySoft,

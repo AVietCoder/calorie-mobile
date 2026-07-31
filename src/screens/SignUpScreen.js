@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Field } from '../components/UI';
 import { colors, radius } from '../theme/colors';
@@ -16,6 +17,9 @@ export default function SignUpScreen({ navigation }) {
   const { register } = useAuth();
   const toast = useToast();
   const { t } = useI18n();
+  // Edge-to-edge: nút VI/EN và banner phải né thanh trạng thái theo insets thật,
+  // không dùng toạ độ cố định (mỗi máy một chiều cao thanh trạng thái).
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState({ username: '', password: '', birthYear: '', weight: '', height: '' });
   const [loading, setLoading] = useState(false);
   const set = (k) => (v) => setForm((s) => ({ ...s, [k]: v }));
@@ -54,8 +58,8 @@ export default function SignUpScreen({ navigation }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        <LinearGradient colors={[colors.heroBg, colors.bg]} style={styles.hero}>
-          <View style={{ position: 'absolute', top: 50, right: 16 }}><LangSwitch /></View>
+        <LinearGradient colors={[colors.heroBg, colors.bg]} style={[styles.hero, { paddingTop: insets.top + 46 }]}>
+          <View style={{ position: 'absolute', top: insets.top + 8, right: 16 }}><LangSwitch /></View>
           <Image source={require('../../assets/banner.png')} style={styles.banner} resizeMode="contain" />
           <Text style={styles.welcome}>{t('auth.signup_title', 'Tạo tài khoản mới')}</Text>
           <Text style={styles.sub}>{t('auth.signup_sub', 'Bắt đầu hành trình dinh dưỡng của bạn')}</Text>
@@ -94,7 +98,8 @@ export default function SignUpScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingTop: 70, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  // paddingTop đặt inline theo insets.top
+  hero: { paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
   banner: { width: BANNER_W, height: BANNER_W / BANNER_RATIO, marginBottom: 4 },
   welcome: { fontSize: 22, fontWeight: '700', color: colors.textMain, marginTop: 18 },
   sub: { color: colors.textSub, marginTop: 4 },

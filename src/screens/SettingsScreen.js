@@ -11,8 +11,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  ActivityIndicator, StyleSheet, SafeAreaView,
+  ActivityIndicator, StyleSheet,
 } from 'react-native';
+// SafeAreaView của react-native KHÔNG có tác dụng trên Android (chỉ iOS) — mà app
+// bật edge-to-edge nên header sẽ chui lên dưới thanh trạng thái. Dùng bản của
+// safe-area-context để tôn trọng insets ở cả hai nền tảng.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';

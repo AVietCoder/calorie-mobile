@@ -81,13 +81,14 @@ export default function GuideScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 14 }}>
-        {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>{t('guide.intro_title', 'Dr.Fit là gì?')}</Text>
-            <Text style={styles.sub}>{stripHtml(t('guide.intro_desc', ''))}</Text>
+        {/* Header — nút VI/EN đứng riêng một hàng để đoạn giới thiệu (khá dài)
+            dùng trọn bề ngang, thay vì bị ép thành một cột hẹp bên cạnh nút. */}
+        <View>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <LangSwitch />
           </View>
-          <LangSwitch />
+          <Text style={styles.h1}>{t('guide.intro_title', 'Dr.Fit là gì?')}</Text>
+          <Text style={styles.sub}>{stripHtml(t('guide.intro_desc', ''))}</Text>
         </View>
 
         {/* 4 tính năng nổi bật */}

@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
@@ -40,8 +41,19 @@ function MainTabs() {
   const { width } = useWindowDimensions();
   const { t } = useI18n();
 
+  /*
+   * App bật edge-to-edge (android/gradle.properties: edgeToEdgeEnabled=true) nên
+   * cửa sổ vẽ TRÀN xuống dưới thanh điều hướng hệ thống. React Navigation vốn tự
+   * cộng insets.bottom vào chiều cao tab bar, NHƯNG ta khai báo `height` tường
+   * minh ở tabBarStyle → giá trị đó ghi đè, làm tab bar nằm lọt dưới thanh điều
+   * hướng (rõ nhất trên Samsung One UI: cả 3 nút lẫn thanh vuốt đều che mất tab).
+   * Vì vậy phải tự cộng insets.bottom vào cả height lẫn paddingBottom.
+   */
+  const insets = useSafeAreaInsets();
+
   // Kiểm tra nếu chiều rộng bé hơn 380 thì coi là màn hình hẹp
   const isCompact = width < 400;
+  const barHeight = isCompact ? 56 : 64;
 
   return (
     <Tabs.Navigator
@@ -59,8 +71,9 @@ function MainTabs() {
           backgroundColor: '#fff',
           borderTopColor: colors.border,
           // Điều chỉnh chiều cao linh hoạt: 56px khi ẩn chữ, 64px khi hiện chữ
-          height: isCompact ? 56 : 64,
-          paddingBottom: isCompact ? 0 : 8,
+          // — cộng thêm vùng an toàn dưới để không bị thanh điều hướng che.
+          height: barHeight + insets.bottom,
+          paddingBottom: insets.bottom + (isCompact ? 0 : 8),
           paddingTop: 6,
         },
         tabBarLabelStyle: { 
