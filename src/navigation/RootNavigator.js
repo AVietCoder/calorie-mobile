@@ -20,10 +20,40 @@ import ScheduleScreen from '../screens/ScheduleScreen';
 import GuideScreen from '../screens/GuideScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import MenuLibraryScreen from '../screens/menu/MenuLibraryScreen';
+import TemplateDetailScreen from '../screens/menu/TemplateDetailScreen';
+import MenuPlanScreen from '../screens/menu/MenuPlanScreen';
+import ShoppingListScreen from '../screens/menu/ShoppingListScreen';
+import HouseholdScreen from '../screens/menu/HouseholdScreen';
 
 const AuthStack = createNativeStackNavigator();
 const MainStack = createNativeStackNavigator();
+const PlanStack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
+
+/**
+ * Tab "Kế hoạch" là một STACK chứ không phải một màn.
+ *
+ * Hai thứ cùng trả lời câu "tuần này ăn gì": lịch ăn do AI sinh (Schedule, gọi
+ * /coach-dynamic) và thực đơn mẫu của gia đình (/family-menu). Gom vào một tab
+ * thay vì thêm tab thứ sáu — 6 tab trên máy hẹp thì chữ bị nuốt hết, mà hai
+ * tính năng này người dùng cũng không dùng cùng lúc.
+ *
+ * Schedule là màn gốc để người đang dùng lịch AI không bị đổi thói quen; lối
+ * vào thực đơn nằm ngay trong đó.
+ */
+function PlanNavigator() {
+  return (
+    <PlanStack.Navigator screenOptions={{ headerShown: false }}>
+      <PlanStack.Screen name="Schedule" component={ScheduleScreen} />
+      <PlanStack.Screen name="MenuLibrary" component={MenuLibraryScreen} />
+      <PlanStack.Screen name="TemplateDetail" component={TemplateDetailScreen} />
+      <PlanStack.Screen name="MenuPlan" component={MenuPlanScreen} />
+      <PlanStack.Screen name="ShoppingList" component={ShoppingListScreen} />
+      <PlanStack.Screen name="Household" component={HouseholdScreen} />
+    </PlanStack.Navigator>
+  );
+}
 
 function AuthNavigator() {
   return (
@@ -96,7 +126,7 @@ function MainTabs() {
     >
       <Tabs.Screen name="Diet" component={DietScreen} options={{ title: t('m.tab_diet', 'Dinh dưỡng') }} />
       <Tabs.Screen name="Chat" component={ChatScreen} options={{ title: t('m.tab_chat', 'Hỏi đáp') }} />
-      <Tabs.Screen name="Schedule" component={ScheduleScreen} options={{ title: t('m.tab_plan', 'Kế hoạch') }} />
+      <Tabs.Screen name="Schedule" component={PlanNavigator} options={{ title: t('m.tab_plan', 'Kế hoạch') }} />
       <Tabs.Screen name="Guide" component={GuideScreen} options={{ title: t('m.tab_guide', 'Cẩm nang') }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: t('m.tab_profile', 'Hồ sơ') }} />
     </Tabs.Navigator>

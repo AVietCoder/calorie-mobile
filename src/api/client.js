@@ -346,3 +346,55 @@ export const SetupAPI = {
 export const DiaryAPI = {
   list: (limit = 60) => apiFetch(`/food-diary?limit=${limit}`),
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Thực đơn gia đình — cùng endpoint /family-menu mà web dùng.
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Web gói mọi thứ vào MỘT route: GET phân nhánh theo ?resource=, POST theo
+   { action }. Ở đây trải ra thành hàm có tên để màn hình không phải nhớ chuỗi
+   ma thuật, nhưng KHÔNG đổi giao thức — sai lệch giữa hai client là nguồn lỗi
+   khó tìm nhất khi backend đổi.
+
+   Route trả bao ngoài { success, data }. Ta bóc `data` ngay tại đây để màn
+   hình chỉ nhìn thấy dữ liệu thật; lỗi đã được apiFetch ném thành Error rồi.  */
+const unwrap = (p) => p.then((r) => (r && typeof r === 'object' && 'data' in r ? r.data : r));
+const qs = (o) => Object.entries(o)
+  .filter(([, v]) => v != null && v !== '')
+  .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+  .join('&');
+
+const post = (action, body = {}) =>
+  unwrap(apiFetch('/family-menu', { method: 'POST', body: JSON.stringify({ action, ...body }) }));
+
+export const FamilyMenuAPI = {
+  /* ── Hồ sơ gia đình ─────────────────────────────────────────────────────
+     Mọi resource thực đơn đều đòi household trước; chưa có thì route trả
+     thẳng 400. Nên màn hình phải gọi cái này TRƯỚC. Khi chưa có hộ, response
+     vẫn hợp lệ với household: null (không phải lỗi).                        */
+  household: () => unwrap(apiFetch('/family-menu?resource=household')),
+  createHousehold: (body) => post('create_household', body),
+  updateHousehold: (household_id, patch) => post('update_household', { household_id, ...patch }),
+  addMember: (household_id, member) => post('add_member', { household_id, ...member }),
+  updateMember: (member_id, patch) => post('update_member', { member_id, ...patch }),
+  removeMember: (member_id) => post('remove_member', { member_id }),
+
+  /* ── Thư viện thực đơn ──────────────────────────────────────────────── */
+  templates: (tag) => unwrap(apiFetch(`/family-menu?${qs({ resource: 'templates', tag })}`)),
+  template: (id) => unwrap(apiFetch(`/family-menu?${qs({ resource: 'template', id })}`)),
+  /** Đi chợ cho một thực đơn CHƯA áp dụng — để cân nhắc trước khi đổi kế hoạch. */
+  templateShoppingList: (id, servings) =>
+    unwrap(apiFetch(`/family-menu?${qs({ resource: 'template-shopping-list', id, servings })}`)),
+
+  /* ── Kế hoạch tuần ──────────────────────────────────────────────────── */
+  /** Trả null khi hộ chưa có kế hoạch nào đang chạy — không phải lỗi. */
+  plan: (household_id) => unwrap(apiFetch(`/family-menu?${qs({ resource: 'plan', household_id })}`)),
+  generatePlan: (household_id, template_id) => post('generate_plan', { household_id, template_id }),
+  swapDish: (plan_dish_id, replacement_dish_id) =>
+    post('swap_dish', { plan_dish_id, replacement_dish_id }),
+  regeneratePlan: (plan_id, opts = {}) => post('regenerate_plan', { plan_id, ...opts }),
+
+  /* ── Đi chợ cho kế hoạch đang chạy ──────────────────────────────────── */
+  shoppingList: (plan_id, servings) =>
+    unwrap(apiFetch(`/family-menu?${qs({ resource: 'shopping-list', plan_id, servings })}`)),
+};

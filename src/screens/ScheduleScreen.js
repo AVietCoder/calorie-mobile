@@ -19,7 +19,7 @@ import { ReminderBell } from '../components/HeaderWidgets';
 import MealDetailModal from '../components/MealDetailModal';
 import {
   getToday, setEaten, setSkipped, addExtra, removeExtra,
-  computeTotals, parseMacro, todayPlanDay, flattenPlan,
+  computeTotals, parseMacro, todayPlanDay, flattenPlan, getWeekExtras,
 } from '../storage/intake';
 import { alertInfo } from '../utils/confirm';
 
@@ -37,6 +37,8 @@ export default function ScheduleScreen({ navigation }) {
   const [expired, setExpired] = useState(false);
 
   const [dayIntake, setDayIntake] = useState({ eaten: {}, skipped: {}, extras: [] });
+  /** Món thêm cả tuần, gom theo day_index — { 4: [...], 5: [...] }. */
+  const [weekExtras, setWeekExtras] = useState({});
   const [target, setTarget] = useState({ calories: 0, macros: { protein: 0, fat: 0, carbs: 0 } });
 
   // Meal modal
@@ -65,6 +67,10 @@ export default function ScheduleScreen({ navigation }) {
   const refreshIntake = useCallback(async () => {
     const { day } = await getToday();
     setDayIntake({ ...day });
+    /* Món thêm của CẢ tuần để bảng 7 ngày xếp vào đúng ngày. Nạp cùng chỗ với
+       intake hôm nay để mọi lần thêm/xoá món đều làm mới cả hai — tách ra là
+       sớm muộn cũng có nhánh quên gọi rồi bảng đứng yên. */
+    setWeekExtras(await getWeekExtras());
   }, []);
 
   // Dùng chung helper flattenPlan (storage/intake) — cùng logic với Trợ lý giọng nói.
@@ -338,7 +344,12 @@ export default function ScheduleScreen({ navigation }) {
     if (!byDay[d]) byDay[d] = [];
     byDay[d].push(m);
   });
-  const days = Object.keys(byDay).map(Number).sort((a, b) => a - b);
+  /* Gộp cả ngày CHỈ có món thêm mà chưa có món nào trong kế hoạch — nếu chỉ lấy
+     khoá của byDay thì hôm đó biến mất khỏi bảng cùng với món vừa nhập. */
+  const days = [...new Set([
+    ...Object.keys(byDay).map(Number),
+    ...Object.keys(weekExtras).map(Number),
+  ])].sort((a, b) => a - b);
   const DAYS_FULL = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
   const totals = computeTotals(dayIntake, flatPlan);
@@ -368,6 +379,28 @@ export default function ScheduleScreen({ navigation }) {
           </SectionTitle>
           <ReminderBell />
         </View>
+
+        {/* Lối vào thư viện thực đơn gia đình.
+            Hai tính năng cùng trả lời "tuần này ăn gì" nhưng khác nguồn: ở trên
+            là lịch do AI sinh cho CÁ NHÂN, còn đây là thực đơn 7 ngày do bệnh
+            viện / nhà thuốc công bố, chọn theo bệnh nền của CẢ NHÀ. */}
+        <Pressable
+          onPress={() => navigation?.navigate?.('MenuLibrary')}
+          style={({ pressed }) => [styles.menuEntry, pressed && { opacity: 0.92 }]}
+        >
+          <View style={styles.menuEntryIcon}>
+            <Ionicons name="restaurant" size={19} color={colors.primaryDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuEntryTitle}>
+              {t('sch.menu_entry_title', 'Thực đơn gia đình')}
+            </Text>
+            <Text style={styles.menuEntrySub}>
+              {t('sch.menu_entry_sub', 'Thực đơn 7 ngày theo bệnh nền, kèm danh sách đi chợ')}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={17} color={colors.muted} />
+        </Pressable>
 
         {expired ? (
           <Card style={styles.congrat}>
@@ -539,7 +572,8 @@ export default function ScheduleScreen({ navigation }) {
             ) : (
               days.map((d) => {
                 const isToday = d === pday;
-                const meals = byDay[d].slice().sort((a, b) => (MEAL_ORDER[a.meal] ?? 9) - (MEAL_ORDER[b.meal] ?? 9));
+                const meals = (byDay[d] || []).slice().sort((a, b) => (MEAL_ORDER[a.meal] ?? 9) - (MEAL_ORDER[b.meal] ?? 9));
+                const dayExtras = weekExtras[d] || [];
                 return (
                   <Card key={d} style={[styles.dayCard, isToday && styles.dayCardToday]}>
                     <View style={styles.dayHeader}>
@@ -600,6 +634,27 @@ export default function ScheduleScreen({ navigation }) {
                         </Pressable>
                       );
                     })}
+
+                    {/* Món người dùng tự thêm cho ngày này.
+                        Trước đây chỉ hiện ở khối "hôm nay" phía trên nên nhìn
+                        vào bảng tuần tưởng hôm đó không ăn gì ngoài kế hoạch,
+                        dù tổng calo và thống kê tuần đều đã tính. Viền đứt để
+                        phân biệt ngay với món do AI xếp. */}
+                    {dayExtras.length > 0 && (
+                      <View style={styles.extraBlock}>
+                        <Text style={styles.extraBlockTitle}>
+                          {t('extra.row', 'Món thêm')}
+                        </Text>
+                        {dayExtras.map((ex) => (
+                          <View key={ex.id} style={styles.extraRow}>
+                            <Text style={styles.extraName} numberOfLines={2}>{ex.name}</Text>
+                            <Text style={styles.extraKcal}>
+                              {Math.round(parseMacro(ex.calories)).toLocaleString('vi-VN')} {t('common.kcal', 'kcal')}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </Card>
                 );
               })
@@ -663,6 +718,38 @@ const styles = StyleSheet.create({
   centerView: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+
+  menuEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, marginBottom: 16,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+  },
+  menuEntryIcon: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft,
+  },
+  extraBlock: {
+    marginTop: 10, paddingTop: 10, gap: 6,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
+  extraBlockTitle: {
+    fontSize: 11, fontWeight: '800', color: colors.textSub,
+    textTransform: 'uppercase', letterSpacing: 0.6,
+  },
+  extraRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary,
+    backgroundColor: colors.cream,
+  },
+  extraName: { flex: 1, fontSize: 13.5, fontWeight: '600', color: colors.primaryDark },
+  extraKcal: { fontSize: 12, fontWeight: '800', color: colors.primary },
+
+  menuEntryTitle: { fontSize: 15, fontWeight: '700', color: colors.textMain },
+  menuEntrySub: { fontSize: 12, color: colors.textSub, marginTop: 2, lineHeight: 17 },
 
   /* today intake */
   tiHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },

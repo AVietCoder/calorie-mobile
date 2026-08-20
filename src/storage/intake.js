@@ -12,8 +12,23 @@ async function keyFor() {
   return `calorie_ai_intake_${uid}`;
 }
 
+/**
+ * Khoá ngày "YYYY-MM-DD" theo GIỜ MÁY, không phải UTC.
+ *
+ * `toISOString()` trả ngày theo UTC. Ở Việt Nam (UTC+7) thì từ 00:00 đến 07:00
+ * sáng, ngày UTC vẫn là HÔM QUA — trong khi `todayPlanDay()` ngay dưới lại lấy
+ * thứ theo giờ máy. Hai hàm chỉ cùng chỉ về một ngày trong 17/24 giờ.
+ *
+ * Hậu quả trong khoảng 0h–7h: tick "đã ăn" và món thêm của hôm nay bị ghi vào
+ * bản ghi hôm qua, tới 7h sáng khoá ngày nhảy thì chúng "biến mất".
+ */
+export function dateKeyOf(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return dateKeyOf(new Date());
 }
 
 // JS: 0=CN..6=T7  →  plan day 1=T2..7=CN
@@ -119,7 +134,8 @@ export async function getLastDays(n = 7) {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    // Cùng khoá với chỗ ghi — xem chú thích ở dateKeyOf.
+    const key = dateKeyOf(d);
     const rec = all[key] || {};
     const tot = { date: key, calories: 0, protein: 0, fat: 0, carbs: 0, dishes: [] };
     Object.values(rec.eatenInfo || {}).forEach((m) => {
@@ -139,6 +155,32 @@ export async function getLastDays(n = 7) {
     days.push(tot);
   }
   return days;
+}
+
+/**
+ * Món thêm của CẢ TUẦN hiện tại, gom theo day_index (1 = T2 … 7 = CN).
+ *
+ * Bảng lộ trình 7 ngày trước đây chỉ vẽ thực đơn do AI sinh, nên món người dùng
+ * tự thêm không xuất hiện ở đâu trong bảng — nhìn vào tưởng hôm đó chưa ăn gì
+ * ngoài kế hoạch, dù tổng calo và thống kê tuần đều đã tính.
+ *
+ * Duyệt theo NGÀY LỊCH rồi suy ra thứ, chứ không đọc day_index đã lưu: bản ghi
+ * cũ không có trường đó, mà ngày thì luôn nằm ngay ở khoá.
+ *
+ * @returns {Promise<Record<number, Array>>} vd { 4: [{...}], 5: [{...}] }
+ */
+export async function getWeekExtras() {
+  const all = await loadAll();
+  const out = {};
+  const today = new Date();
+  const todayIdx = todayPlanDay();
+  for (let idx = 1; idx <= 7; idx++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + (idx - todayIdx));
+    const list = all[dateKeyOf(d)]?.extras || [];
+    if (list.length) out[idx] = list;
+  }
+  return out;
 }
 
 /**
