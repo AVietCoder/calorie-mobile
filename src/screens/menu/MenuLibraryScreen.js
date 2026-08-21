@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  ActivityIndicator, FlatList, Image, Pressable, RefreshControl,
+  ActivityIndicator, FlatList, ImageBackground, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -118,25 +118,40 @@ function TemplateCard({ item, onPress, t }) {
   const tpl = item.template;
   const cat = getCategory(tpl.category);
   const logo = tpl.image_url ? null : sourceLogo(tpl.source_name);
+  /* Ảnh nền bìa: ảnh admin tải lên trước, không có thì logo đơn vị. */
+  const cover = tpl.image_url || logo;
 
   return (
     <Pressable
       onPress={() => onPress(tpl.id)}
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
     >
-      {/* Bìa: gradient danh mục + logo đơn vị.
-          Web phủ logo làm nền rồi làm mờ, nhưng app không có expo-blur; phủ
-          logo VUÔNG (đa số logo là ảnh vuông) lên bìa ngang mà không làm mờ
-          thì chỉ còn thấy một dải giữa ảnh, chữ trong logo bị cắt ngang. Nên ở
-          đây giữ gradient làm nền và để logo `contain` — không cắt, không méo. */}
-      <LinearGradient colors={[cat.from, cat.to]} style={styles.cover}>
-        {logo ? (
-          <Image source={{ uri: logo }} style={styles.coverLogo} resizeMode="contain" />
-        ) : tpl.image_url ? (
-          <Image source={{ uri: tpl.image_url }} style={styles.coverImg} resizeMode="cover" />
+      {/* Bìa: ẢNH phủ kín, huy hiệu đè lên — dựng đúng như bản web
+          (.ml-cover-bg): cover + center + phóng nhẹ 1.3× cho logo, rồi một lớp
+          gradient tối để hai huy hiệu đọc được trên mọi màu logo.
+          Gradient danh mục nằm dưới cùng làm nền dự phòng khi nguồn chưa có
+          logo hoặc ảnh lỗi mạng. */}
+      <View style={styles.cover}>
+        <LinearGradient colors={[cat.from, cat.to]} style={StyleSheet.absoluteFill} />
+
+        {cover ? (
+          <ImageBackground
+            source={{ uri: cover }}
+            resizeMode="cover"
+            style={StyleSheet.absoluteFill}
+            imageStyle={tpl.image_url ? null : styles.coverLogoImg}
+          />
         ) : (
-          <Ionicons name={cat.icon} size={34} color="rgba(255,255,255,0.92)" />
+          <View style={styles.coverIcon}>
+            <Ionicons name={cat.icon} size={34} color="rgba(255,255,255,0.92)" />
+          </View>
         )}
+
+        <LinearGradient
+          colors={['rgba(0,0,0,0.34)', 'rgba(0,0,0,0.06)', 'rgba(0,0,0,0.32)']}
+          locations={[0, 0.55, 1]}
+          style={StyleSheet.absoluteFill}
+        />
 
         <View style={styles.coverTop}>
           {tpl.is_system && (
@@ -156,7 +171,7 @@ function TemplateCard({ item, onPress, t }) {
             <Text style={styles.inUseText}>{t('ml.in_use', 'Đang dùng')}</Text>
           </View>
         )}
-      </LinearGradient>
+      </View>
 
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle} numberOfLines={2}>{tpl.title}</Text>
@@ -238,6 +253,16 @@ export default function MenuLibraryScreen({ navigation }) {
   if (!household) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Cũng cần lối ra: ai chưa muốn tạo hộ mà không có nút quay lại thì
+            coi như bị nhốt ở form này. */}
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => [styles.backLink, pressed && { opacity: 0.85 }]}
+          hitSlop={6}
+        >
+          <Ionicons name="chevron-back" size={16} color={colors.primary} />
+          <Text style={styles.backLinkText}>{t('ml.back_personal', 'Thực đơn cá nhân')}</Text>
+        </Pressable>
         <HouseholdSetup onCreated={() => load()} t={t} />
       </SafeAreaView>
     );
@@ -245,6 +270,19 @@ export default function MenuLibraryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Lối QUAY VỀ thực đơn cá nhân.
+          Màn này nằm trong stack của tab Kế hoạch nên cử chỉ vuốt vẫn quay lại
+          được, nhưng không có gì trên màn hình nói điều đó — người dùng vào rồi
+          tưởng mắc kẹt trong mảng gia đình. */}
+      <Pressable
+        onPress={() => navigation.goBack()}
+        style={({ pressed }) => [styles.backLink, pressed && { opacity: 0.85 }]}
+        hitSlop={6}
+      >
+        <Ionicons name="chevron-back" size={16} color={colors.primary} />
+        <Text style={styles.backLinkText}>{t('ml.back_personal', 'Thực đơn cá nhân')}</Text>
+      </Pressable>
+
       <View style={styles.header}>
         <SectionTitle sub={t('ml.sub', 'Thực đơn 7 ngày từ bệnh viện, nhà thuốc và trung tâm dinh dưỡng')} style={{ flex: 1, marginBottom: 0 }}>
           {t('ml.title', 'Thư viện thực đơn')}
@@ -357,9 +395,17 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
 
+  backLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    alignSelf: 'flex-start',
+    marginLeft: spacing.lg - 4, marginTop: spacing.sm,
+    paddingVertical: 6, paddingHorizontal: 4,
+  },
+  backLinkText: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.primary },
+
   header: {
     flexDirection: 'row', alignItems: 'flex-start',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.xs, gap: spacing.sm,
   },
   iconBtn: {
     width: 38, height: 38, borderRadius: radius.full,
@@ -405,9 +451,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadow.card,
   },
-  cover: { height: 116, alignItems: 'center', justifyContent: 'center' },
-  coverImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  coverLogo: { width: '58%', height: 60 },
+  cover: { height: 124, overflow: 'hidden' },
+  /* Phóng 1.3× cho LOGO — y như .ml-cover-bg.is-logo bên web: logo phần lớn là
+     ảnh vuông, phủ cover lên bìa ngang mà để nguyên thì mép trắng của logo lộ
+     thành viền lạ. Ảnh admin tải lên là ảnh thật nên giữ nguyên. */
+  coverLogoImg: { transform: [{ scale: 1.3 }] },
+  coverIcon: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   coverTop: {
     position: 'absolute', top: 10, left: 10, right: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

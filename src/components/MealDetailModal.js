@@ -6,6 +6,7 @@ import {
   Modal, View, Text, Pressable, TextInput, ScrollView, StyleSheet, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { macroText } from '../storage/intake';
 import { colors, radius, shadow } from '../theme/colors';
 import { useI18n } from '../i18n';
 
@@ -60,12 +61,12 @@ export default function MealDetailModal({
   };
 
   const detailRows = [
-    ['fitness', '#5b9cf6', 'chat.protein', 'Protein', item.protein],
-    ['water', '#f5a623', 'chat.fat', 'Chất béo', item.fat],
-    ['nutrition', '#7dc976', 'chat.carbs', 'Carbs', item.carbs],
-    ['leaf', '#9b7edb', 'chat.fiber', 'Chất xơ', item.fiber],
-    ['ice-cream', '#e07ca0', 'chat.sugar', 'Đường', item.sugar],
-    ['flask', '#7090d0', 'chat.sodium', 'Natri', item.sodium],
+    ['fitness', '#5b9cf6', 'chat.protein', 'Protein', macroText(item.protein)],
+    ['water', '#f5a623', 'chat.fat', 'Chất béo', macroText(item.fat)],
+    ['nutrition', '#7dc976', 'chat.carbs', 'Carbs', macroText(item.carbs)],
+    ['leaf', '#9b7edb', 'chat.fiber', 'Chất xơ', macroText(item.fiber)],
+    ['ice-cream', '#e07ca0', 'chat.sugar', 'Đường', macroText(item.sugar)],
+    ['flask', '#7090d0', 'chat.sodium', 'Natri', macroText(item.sodium)],
   ].filter((r) => r[4] != null && r[4] !== '');
 
   return (
@@ -124,8 +125,8 @@ export default function MealDetailModal({
             <View style={styles.kcalBox}>
               <Text style={styles.kcalFire}>🔥</Text>
               <View>
-                <Text style={styles.kcalNum}>{item.calories != null ? item.calories : '—'}</Text>
-                <Text style={styles.kcalUnit}>kcal · {item.amount || '—'}</Text>
+                <Text style={styles.kcalNum}>{macroText(item.calories) || '—'}</Text>
+                <Text style={styles.kcalUnit}>kcal · {macroText(item.amount) || '—'}</Text>
               </View>
             </View>
 

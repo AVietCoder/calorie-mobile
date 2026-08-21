@@ -37,9 +37,32 @@ export function todayPlanDay() {
   return d === 0 ? 7 : d;
 }
 
+/**
+ * Ép một trường dinh dưỡng về CHUỖI hiển thị được.
+ *
+ * Model đôi khi trả macro dạng object `{"unit":"","value":30}` hoặc mảng thay vì
+ * chuỗi "30g", và thứ đó được lưu thẳng vào weekly_plan. Render trực tiếp là
+ * React ném "Objects are not valid as a React child (found: object with keys
+ * {unit, value})" và sập cả màn Kế hoạch.
+ *
+ * Backend nay đã chuẩn hoá lúc nhập, nhưng các thực đơn ĐÃ LƯU chỉ sạch khi
+ * sinh lại — nên vẫn phải chắn ở đây. Mọi chỗ hiển thị macro đều đi qua hàm này.
+ */
+export function macroText(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return macroText(v[0]);
+  if (typeof v === 'object') {
+    const val = v.value ?? v.amount ?? v.qty;
+    if (val == null) return '';
+    const unit = String(v.unit ?? '').trim();
+    return `${val}${unit}`;
+  }
+  return String(v);
+}
+
 export function parseMacro(v) {
   if (v == null) return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.]/g, ''));
+  const n = parseFloat(macroText(v).replace(/[^0-9.]/g, ''));
   return isNaN(n) ? 0 : n;
 }
 
@@ -68,8 +91,49 @@ export async function getToday() {
   return { all, day: all[k] };
 }
 
+/**
+ * Khoá ngày của planDay (1 = T2 … 7 = CN) TRONG TUẦN HIỆN TẠI.
+ * Bảng lộ trình đánh số theo THỨ, kho intake lưu theo NGÀY LỊCH.
+ */
+export function dateKeyForPlanDay(planDay) {
+  const d = new Date();
+  d.setDate(d.getDate() + (Number(planDay) - todayPlanDay()));
+  return dateKeyOf(d);
+}
+
+/** Bản ghi intake của MỘT ngày trong tuần (tạo rỗng nếu chưa có). */
+function dayRecord(all, planDay) {
+  const k = dateKeyForPlanDay(planDay);
+  if (!all[k]) all[k] = { eaten: {}, skipped: {}, extras: [], eatenInfo: {} };
+  if (!all[k].eaten) all[k].eaten = {};
+  if (!all[k].skipped) all[k].skipped = {};
+  if (!all[k].extras) all[k].extras = [];
+  if (!all[k].eatenInfo) all[k].eatenInfo = {};
+  return all[k];
+}
+
+/**
+ * Trạng thái đã ăn / bỏ bữa của CẢ TUẦN, gom theo planDay.
+ *
+ * Sửa lỗi "qua ngày là mất hết món đã ăn": màn Kế hoạch trước đây chỉ nạp bản
+ * ghi HÔM NAY rồi tra mọi ngày trong đó, nên tick của hôm qua không còn đường
+ * nào đọc lại — dù dữ liệu vẫn nằm nguyên trong bản ghi của ngày hôm qua.
+ *
+ * @returns {Promise<Record<number,{eaten:object, skipped:object}>>}
+ */
+export async function getWeekIntake() {
+  const all = await loadAll();
+  const out = {};
+  for (let d = 1; d <= 7; d++) {
+    const rec = all[dateKeyForPlanDay(d)] || {};
+    out[d] = { eaten: rec.eaten || {}, skipped: rec.skipped || {} };
+  }
+  return out;
+}
+
 export async function setEaten(planDay, meal, val, item) {
-  const { all, day } = await getToday();
+  const all = await loadAll();
+  const day = dayRecord(all, planDay);
   const key = `${planDay}-${meal}`;
   if (val) {
     day.eaten[key] = true;
@@ -94,7 +158,8 @@ export async function setEaten(planDay, meal, val, item) {
 }
 
 export async function setSkipped(planDay, meal, val) {
-  const { all, day } = await getToday();
+  const all = await loadAll();
+  const day = dayRecord(all, planDay);
   const key = `${planDay}-${meal}`;
   if (val) {
     day.skipped[key] = true;

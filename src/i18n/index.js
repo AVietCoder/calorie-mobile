@@ -366,7 +366,10 @@ export function LanguageProvider({ children }) {
   }, [t]);
 
   const localizeFood = useCallback((name) => {
-    const raw = String(name || '').trim();
+    /* Bỏ cú pháp in đậm của markdown trước mọi việc khác — model đôi khi trả
+       "**Bún cá** (cá lóc, đậu hũ...)" và các thực đơn đã lưu vẫn còn dấu sao.
+       Gột trước khi tra từ điển cũng làm khớp tốt hơn. */
+    const raw = String(name || '').replace(/\*+/g, '').trim();
     if (!raw || lang !== 'en') return raw;
     const key = raw.toLowerCase().replace(/\s+/g, ' ');
     if (FOOD_EN[key]) return FOOD_EN[key];

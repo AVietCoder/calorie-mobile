@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Button, Card, SectionTitle } from '../components/UI';
@@ -20,7 +21,7 @@ import MealDetailModal from '../components/MealDetailModal';
 import GenerationProgress from '../components/GenerationProgress';
 import {
   getToday, setEaten, setSkipped, addExtra, removeExtra,
-  computeTotals, parseMacro, todayPlanDay, flattenPlan, getWeekExtras,
+  computeTotals, parseMacro, macroText, todayPlanDay, flattenPlan, getWeekExtras, getWeekIntake,
 } from '../storage/intake';
 import { alertInfo } from '../utils/confirm';
 
@@ -40,6 +41,8 @@ export default function ScheduleScreen({ navigation }) {
   const [dayIntake, setDayIntake] = useState({ eaten: {}, skipped: {}, extras: [] });
   /** Món thêm cả tuần, gom theo day_index — { 4: [...], 5: [...] }. */
   const [weekExtras, setWeekExtras] = useState({});
+  /** Đã ăn / bỏ bữa cả tuần — { 4: {eaten:{}, skipped:{}}, ... }. */
+  const [weekIntake, setWeekIntake] = useState({});
   const [target, setTarget] = useState({ calories: 0, macros: { protein: 0, fat: 0, carbs: 0 } });
 
   // Meal modal
@@ -72,6 +75,9 @@ export default function ScheduleScreen({ navigation }) {
        intake hôm nay để mọi lần thêm/xoá món đều làm mới cả hai — tách ra là
        sớm muộn cũng có nhánh quên gọi rồi bảng đứng yên. */
     setWeekExtras(await getWeekExtras());
+    /* Trạng thái đã ăn / bỏ bữa của CẢ tuần. Chỉ nạp bản ghi hôm nay thì tick
+       của những ngày trước không đọc lại được — đúng lỗi "qua ngày là mất hết". */
+    setWeekIntake(await getWeekIntake());
   }, []);
 
   // Dùng chung helper flattenPlan (storage/intake) — cùng logic với Trợ lý giọng nói.
@@ -160,23 +166,33 @@ export default function ScheduleScreen({ navigation }) {
 
   /* ── Hành động trên 1 bữa ── */
   const onToggleEaten = async (item) => {
-    const key = `${pday}-${item.meal}`;
-    const next = !dayIntake.eaten?.[key];
+    /* Ghi vào NGÀY CỦA CHÍNH MÓN ĐÓ. Trước đây luôn dùng pday nên tick ở ô
+       ngày khác sẽ ghi nhầm sang hôm nay. */
+    const planDay = Number(item.day) || pday;
+    const key = `${planDay}-${item.meal}`;
+    const next = !(weekIntake[planDay]?.eaten?.[key]);
     // Truyền item để lưu snapshot dinh dưỡng (thống kê 7 ngày & cảnh báo sức khỏe)
-    const day = await setEaten(pday, item.meal, next, item);
-    setDayIntake({ ...day });
+    const day = await setEaten(planDay, item.meal, next, item);
+    if (planDay === pday) setDayIntake({ ...day });
+    setWeekIntake(await getWeekIntake());
   };
 
+  /* Cả hai đều ghi theo NGÀY CỦA MÓN. Ngày tương lai thì bỏ qua — chưa tới thì
+     chưa ăn cũng chưa bỏ được. */
   const onEat = async (item) => {
-    if (Number(item.day) === pday) {
-      const day = await setEaten(pday, item.meal, true, item);
-      setDayIntake({ ...day });
-    }
+    const planDay = Number(item.day) || pday;
+    if (planDay > pday) return;
+    const day = await setEaten(planDay, item.meal, true, item);
+    if (planDay === pday) setDayIntake({ ...day });
+    setWeekIntake(await getWeekIntake());
   };
 
   const onSkip = async (item) => {
-    const day = await setSkipped(pday, item.meal, true);
-    setDayIntake({ ...day });
+    const planDay = Number(item.day) || pday;
+    if (planDay > pday) return;
+    const day = await setSkipped(planDay, item.meal, true);
+    if (planDay === pday) setDayIntake({ ...day });
+    setWeekIntake(await getWeekIntake());
     toast.show(t('sch.skip_saved', 'Đã đánh dấu bỏ bữa này'), 'info');
   };
 
@@ -328,12 +344,21 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   if (loading || checking) {
+    /* Lần vào đầu tiên có thể phải SINH thực đơn (gọi AI) nên chờ khá lâu —
+       một vòng xoay trơn với chữ "Đang tải…" không cho biết còn bao lâu hay
+       hệ thống có còn sống không. Dùng đúng thanh tiến trình của luồng sinh. */
     return (
       <SafeAreaView style={styles.centerView}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={{ marginTop: 12, color: colors.textSub }}>
-          {generating ? t('m.gen_plan', 'AI đang lên thực đơn 7 ngày cho bạn…') : t('m.loading', 'Đang tải…')}
-        </Text>
+        <View style={{ width: '100%', maxWidth: 420, paddingHorizontal: 20 }}>
+          <GenerationProgress
+            running
+            done={false}
+            expectedMs={generating ? 14_000 : 6_000}
+            title={generating
+              ? t('m.gen_plan', 'AI đang lên thực đơn 7 ngày cho bạn…')
+              : t('m.loading', 'Đang tải…')}
+          />
+        </View>
       </SafeAreaView>
     );
   }
@@ -387,10 +412,16 @@ export default function ScheduleScreen({ navigation }) {
             viện / nhà thuốc công bố, chọn theo bệnh nền của CẢ NHÀ. */}
         <Pressable
           onPress={() => navigation?.navigate?.('MenuLibrary')}
-          style={({ pressed }) => [styles.menuEntry, pressed && { opacity: 0.92 }]}
+          style={({ pressed }) => [styles.menuEntry, pressed && { opacity: 0.93, transform: [{ scale: 0.995 }] }]}
         >
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.menuEntryIcon}>
-            <Ionicons name="restaurant" size={19} color={colors.primaryDark} />
+            <Ionicons name="restaurant" size={21} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.menuEntryTitle}>
@@ -400,7 +431,9 @@ export default function ScheduleScreen({ navigation }) {
               {t('sch.menu_entry_sub', 'Thực đơn 7 ngày theo bệnh nền, kèm danh sách đi chợ')}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={17} color={colors.muted} />
+          <View style={styles.menuEntryGo}>
+            <Ionicons name="arrow-forward" size={16} color="#fff" />
+          </View>
         </Pressable>
 
         {expired ? (
@@ -435,7 +468,12 @@ export default function ScheduleScreen({ navigation }) {
                       stroke={diff < 0 ? colors.danger : colors.primary}
                       strokeWidth="12" strokeLinecap="round"
                       strokeDasharray={`${C}`} strokeDashoffset={`${C * (1 - ringPct)}`}
-                      originX="60" originY="60" rotation={-90}
+                      /* transform chuẩn SVG thay cho originX/originY/rotation:
+                         bộ ba kia bị react-native-svg dịch thành thuộc tính DOM
+                         `transform-origin` khi chạy trên web, và React cảnh báo
+                         "Invalid DOM property". rotate(góc, tâmX, tâmY) chạy
+                         đúng trên cả native lẫn web. */
+                      transform="rotate(-90, 60, 60)"
                     />
                   </Svg>
                   <View style={styles.ringCenter}>
@@ -597,9 +635,14 @@ export default function ScheduleScreen({ navigation }) {
                     </View>
 
                     {meals.map((m, j) => {
-                      const key = `${pday}-${m.meal}`;
-                      const skipped = isToday && !!dayIntake.skipped?.[key];
-                      const eaten = isToday && !skipped && !!dayIntake.eaten?.[key];
+                      /* Đọc theo NGÀY CỦA Ô, không phải hôm nay — ngày đã qua
+                         vẫn xem và sửa được; ngày tương lai thì chưa có gì để
+                         đánh dấu. */
+                      const trackable = d <= pday;
+                      const key = `${d}-${m.meal}`;
+                      const rec = weekIntake[d] || {};
+                      const skipped = trackable && !!rec.skipped?.[key];
+                      const eaten = trackable && !skipped && !!rec.eaten?.[key];
                       return (
                         <Pressable key={j} style={styles.mealRow} onPress={() => setModalItem({ item: m, isToday, skipped })}>
                           <View style={styles.mealInfo}>
@@ -613,21 +656,21 @@ export default function ScheduleScreen({ navigation }) {
                               ]}>
                                 <Text style={styles.timeText}>{m.meal}</Text>
                               </View>
-                              <Text style={styles.kcalText}>{m.calories} {t('common.kcal', 'kcal')}</Text>
+                              <Text style={styles.kcalText}>{macroText(m.calories)} {t('common.kcal', 'kcal')}</Text>
                             </View>
                             <Text style={[styles.foodName, (eaten || skipped) && { textDecorationLine: 'line-through', color: colors.muted }]}>
                               {localizeFood(m.food)}
                             </Text>
-                            <Text style={styles.amountText}>{t('m.amount', 'Định lượng')}: {m.amount}</Text>
+                            <Text style={styles.amountText}>{t('m.amount', 'Định lượng')}: {macroText(m.amount)}</Text>
                             <View style={styles.macroRow}>
-                              <Text style={styles.macroText}>P: {m.protein}</Text>
-                              <Text style={styles.macroText}>F: {m.fat}</Text>
-                              <Text style={styles.macroText}>C: {m.carbs}</Text>
+                              <Text style={styles.macroText}>P: {macroText(m.protein)}</Text>
+                              <Text style={styles.macroText}>F: {macroText(m.fat)}</Text>
+                              <Text style={styles.macroText}>C: {macroText(m.carbs)}</Text>
                             </View>
                           </View>
 
                           {/* trạng thái hôm nay */}
-                          {isToday && (
+                          {trackable && (
                             skipped ? (
                               <View style={styles.skipBadge}>
                                 <Ionicons name="ban" size={12} color={colors.danger} />
@@ -731,16 +774,30 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
 
+  /* Thẻ nền GRADIENT XANH, không phải thẻ trắng như mọi thẻ khác quanh nó.
+     Đây là lối duy nhất sang cả mảng thực đơn gia đình; để cùng màu trắng thì
+     mắt lướt qua mất. overflow:hidden để gradient bám đúng bo góc. */
   menuEntry: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 13,
+    padding: 16, marginBottom: 18,
     borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+    overflow: 'hidden',
+    backgroundColor: colors.primary,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
   },
   menuEntryIcon: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft,
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  menuEntryGo: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
   extraBlock: {
     marginTop: 10, paddingTop: 10, gap: 6,
@@ -760,8 +817,8 @@ const styles = StyleSheet.create({
   extraName: { flex: 1, fontSize: 13.5, fontWeight: '600', color: colors.primaryDark },
   extraKcal: { fontSize: 12, fontWeight: '800', color: colors.primary },
 
-  menuEntryTitle: { fontSize: 15, fontWeight: '700', color: colors.textMain },
-  menuEntrySub: { fontSize: 12, color: colors.textSub, marginTop: 2, lineHeight: 17 },
+  menuEntryTitle: { fontSize: 16, fontWeight: '800', color: '#fff' },
+  menuEntrySub: { fontSize: 12, color: 'rgba(255,255,255,0.88)', marginTop: 2, lineHeight: 17 },
 
   /* today intake */
   tiHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
