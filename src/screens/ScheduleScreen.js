@@ -17,6 +17,7 @@ import { useAuthGuard } from '../hooks/useAuthGuard';
 import { useI18n } from '../i18n';
 import { ReminderBell } from '../components/HeaderWidgets';
 import MealDetailModal from '../components/MealDetailModal';
+import GenerationProgress from '../components/GenerationProgress';
 import {
   getToday, setEaten, setSkipped, addExtra, removeExtra,
   computeTotals, parseMacro, todayPlanDay, flattenPlan, getWeekExtras,
@@ -567,7 +568,18 @@ export default function ScheduleScreen({ navigation }) {
               />
             </View>
 
-            {days.length === 0 ? (
+            {/* Tiến trình sinh thực đơn. Đặt NGAY TRÊN bảng để người dùng thấy
+                cái đang thay đổi, thay vì một spinner che cả màn hình. */}
+            {generating && (
+              <GenerationProgress
+                running={generating}
+                done={false}
+                expectedMs={14_000}
+                title={t('m.gen_plan', 'AI đang lên thực đơn 7 ngày cho bạn…')}
+              />
+            )}
+
+            {days.length === 0 && !generating ? (
               <View style={styles.emptyContainer}><Text style={styles.emptyText}>{t('m.no_plan', 'Chưa có thực đơn tuần này.')}</Text></View>
             ) : (
               days.map((d) => {

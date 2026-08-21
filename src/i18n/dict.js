@@ -88,6 +88,8 @@
       "extra.added": "Đã thêm vào hôm nay!",
       "extra.list_title": "Món thêm hôm nay",
       "extra.row": "Món thêm",
+      "ml.shopping_short": "Đi chợ",
+      "ml.applying": "Đang tạo kế hoạch cho gia đình…",
       "extra.need_name": "Vui lòng nhập tên món",
       "extra.optional_macro": "Dinh dưỡng (tùy chọn)",
 
@@ -497,6 +499,8 @@
       "extra.added": "Added to today!",
       "extra.list_title": "Today's extra foods",
       "extra.row": "Extras",
+      "ml.shopping_short": "Shopping",
+      "ml.applying": "Creating your family plan…",
       "extra.need_name": "Please enter a food name",
       "extra.optional_macro": "Nutrition (optional)",
 

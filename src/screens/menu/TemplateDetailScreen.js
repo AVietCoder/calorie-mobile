@@ -1,13 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { Button } from '../../components/UI';
 import { FamilyMenuAPI } from '../../api/client';
 import { useToast } from '../../components/Toast';
 import { colors, font, radius, shadow, spacing } from '../../theme/colors';
@@ -19,6 +18,7 @@ import {
   MEAL_ICON, mealsOf, kcalOf, stripAmounts, avgKcal, countDishes,
 } from '../../menu/templateUtils';
 import TemplateDayModal from '../../components/menu/TemplateDayModal';
+import GenerationProgress from '../../components/GenerationProgress';
 import { confirmAction } from '../../utils/confirm';
 
 const vn = (v) => Number(v).toLocaleString('vi-VN');
@@ -151,53 +151,107 @@ export default function TemplateDetailScreen({ route, navigation }) {
 
   const cat = getCategory(tpl.category);
   const logo = sourceLogo(tpl.source_name);
+  /* Nền hero: ảnh admin tải lên trước, không có thì logo đơn vị. */
+  const heroBg = tpl.image_url || logo;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Hero: gradient danh mục, huy hiệu + tiêu đề + thống kê đè lên. */}
-        <LinearGradient colors={[cat.from, cat.to]} style={styles.hero}>
-          <View style={styles.heroTop}>
-            <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.back}>
-              <Ionicons name="arrow-back" size={19} color="#fff" />
-            </Pressable>
-            <View style={styles.heroChip}>
-              <Ionicons name={cat.icon} size={12} color="#fff" />
-              <Text style={styles.heroChipText}>{cat.label}</Text>
-            </View>
-            {!!logo && (
-              <View style={styles.heroLogo}>
-                <Image source={{ uri: logo }} style={styles.heroLogoImg} resizeMode="contain" />
+        {/*
+          Hero: ẢNH phủ kín nền, mọi nội dung nằm đè lên.
+
+          Không còn tấm nền trắng bọc logo. `ImageBackground` + resizeMode
+          "cover" phủ từ mép này sang mép kia và giữ nguyên tỉ lệ (cover cắt
+          phần thừa chứ không kéo méo). Gradient tối phủ lên trên để chữ trắng
+          luôn đọc được dù ảnh sáng hay tối.
+
+          `defaultSource` là gradient danh mục nằm dưới cùng: nguồn chưa có
+          logo, hoặc ảnh lỗi mạng, thì hero vẫn ra một khối màu tử tế thay vì ô
+          đen trống.
+        */}
+        <View style={styles.heroWrap}>
+          <LinearGradient colors={[cat.from, cat.to]} style={StyleSheet.absoluteFill} />
+          <ImageBackground
+            source={heroBg ? { uri: heroBg } : undefined}
+            resizeMode="cover"
+            style={styles.hero}
+            imageStyle={styles.heroImg}
+          >
+            <LinearGradient
+              colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.72)']}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+
+            <View style={styles.heroContent}>
+              {/* hàng trên: quay lại + danh mục + logo + hệ thống */}
+              <View style={styles.heroTop}>
+                <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.back}>
+                  <Ionicons name="arrow-back" size={19} color="#fff" />
+                </Pressable>
+                <View style={styles.heroChip}>
+                  <Ionicons name={cat.icon} size={12} color="#fff" />
+                  <Text style={styles.heroChipText}>{cat.label}</Text>
+                </View>
+                {!!logo && (
+                  <Image source={{ uri: logo }} style={styles.heroLogo} resizeMode="contain" />
+                )}
+                {!!tpl.is_system && (
+                  <View style={styles.heroChip}>
+                    <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                    <Text style={styles.heroChipText}>{t('ml.system', 'Hệ thống')}</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
 
-          <Text style={styles.heroTitle}>{tpl.title}</Text>
-          {!!tpl.description && <Text style={styles.heroDesc}>{tpl.description}</Text>}
+              <Text style={styles.heroTitle}>{tpl.title}</Text>
+              {!!tpl.description && <Text style={styles.heroDesc}>{tpl.description}</Text>}
 
-          <View style={styles.heroStats}>
-            <Stat value={days.length} label={t('ml.days', 'ngày')} />
-            <Stat value={dishCount} label={t('ml.dishes', 'món')} />
-            {kcal != null && <Stat value={vn(kcal)} label={t('ml.kcal_day', 'kcal/ngày')} />}
-          </View>
-        </LinearGradient>
+              {/* hàng dưới: thống kê bên trái, hành động bên phải.
+                  flexWrap để máy hẹp đẩy nút xuống dòng thay vì tràn ngang. */}
+              <View style={styles.heroBottom}>
+                <View style={styles.heroStats}>
+                  <Stat value={days.length} label={t('ml.days', 'ngày')} />
+                  <Stat value={dishCount} label={t('ml.dishes', 'món')} />
+                  {kcal != null && <Stat value={vn(kcal)} label={t('ml.kcal_day', 'kcal/ngày')} />}
+                </View>
 
-        <View style={styles.actions}>
-          <Button
-            title={t('ml.generate', 'Dùng thực đơn này')}
-            onPress={apply}
-            loading={applying}
-            fullWidth
-            icon={<Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 6 }} />}
-          />
-          <Button
-            title={t('ml.shopping', 'Xem danh sách đi chợ')}
-            variant="secondary"
-            onPress={() => navigation.navigate('ShoppingList', { templateId: id, title: tpl.title })}
-            fullWidth
-            icon={<Ionicons name="cart-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />}
-          />
+                <View style={styles.heroActions}>
+                  <Pressable
+                    onPress={() => navigation.navigate('ShoppingList', { templateId: id, title: tpl.title })}
+                    style={({ pressed }) => [styles.btnLight, pressed && { opacity: 0.9 }]}
+                  >
+                    <Ionicons name="cart-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.btnLightText}>{t('ml.shopping_short', 'Đi chợ')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={apply}
+                    disabled={applying}
+                    style={({ pressed }) => [styles.btnPrimary, (pressed || applying) && { opacity: 0.9 }]}
+                  >
+                    {applying
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Ionicons name="sparkles" size={15} color="#fff" />}
+                    <Text style={styles.btnPrimaryText}>{t('ml.generate', 'Dùng thực đơn này')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </ImageBackground>
         </View>
+
+        {/* Áp dụng thực đơn = dựng cả cây kế hoạch tuần trong DB. Nhanh (đo ~3s)
+            nhưng vẫn phải cho thấy hệ thống đang chạy, nhất là khi mạng yếu. */}
+        {applying && (
+          <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
+            <GenerationProgress
+              running={applying}
+              done={false}
+              expectedMs={6_000}
+              title={t('ml.applying', 'Đang tạo kế hoạch cho gia đình…')}
+            />
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>{t('ml.week', 'Thực đơn 7 ngày')}</Text>
         {days.map((d) => (
@@ -257,8 +311,16 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: spacing.huge },
   empty: { color: colors.textSub, fontSize: font.size.md },
 
-  hero: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  /* overflow:hidden để bo góc cắt được cả ảnh nền bên trong. */
+  heroWrap: {
+    margin: spacing.lg, borderRadius: radius.xl, overflow: 'hidden',
+    backgroundColor: colors.primaryDark, ...shadow.md,
+  },
+  hero: { minHeight: 260, justifyContent: 'flex-end' },
+  heroImg: { borderRadius: radius.xl },
+  heroContent: { padding: spacing.xl, gap: spacing.md },
+
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   back: {
     width: 34, height: 34, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.22)',
@@ -269,23 +331,51 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.28)',
   },
   heroChipText: { fontSize: font.size.xs, fontWeight: font.weight.bold, color: '#fff' },
+  /* Logo NÉT ở hàng huy hiệu: nền hero là ảnh đã phủ tối nên vẫn cần một bản
+     rõ để đọc ra đơn vị phát hành. Nền trắng mờ nhẹ vì phần lớn logo là chữ
+     sẫm — thả thẳng lên ảnh tối là mất hút. */
   heroLogo: {
-    width: 82, height: 28, borderRadius: radius.full,
-    backgroundColor: 'rgba(255,255,255,0.94)', padding: 4,
+    width: 74, height: 26, borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
-  heroLogoImg: { width: '100%', height: '100%' },
 
   heroTitle: {
     fontSize: font.size.xxl, fontWeight: font.weight.heavy, color: '#fff',
-    lineHeight: font.size.xxl * 1.25, marginTop: spacing.sm,
+    lineHeight: font.size.xxl * 1.25,
+    textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8,
   },
-  heroDesc: { fontSize: font.size.sm, color: 'rgba(255,255,255,0.9)', lineHeight: font.size.sm * 1.5 },
-  heroStats: { flexDirection: 'row', gap: spacing.xxl, marginTop: spacing.sm },
+  heroDesc: {
+    fontSize: font.size.sm, color: 'rgba(255,255,255,0.9)', lineHeight: font.size.sm * 1.5,
+    textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
+  },
+
+  /* Thống kê trái · hành động phải. flexWrap + gap dọc để máy hẹp đẩy nút
+     xuống dòng riêng thay vì bóp nhỏ hoặc tràn ra ngoài. */
+  heroBottom: {
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs,
+  },
+  heroStats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
   stat: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  statValue: { fontSize: font.size.xl, fontWeight: font.weight.heavy, color: '#fff' },
+  statValue: {
+    fontSize: font.size.xl, fontWeight: font.weight.heavy, color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6,
+  },
   statLabel: { fontSize: font.size.xs, color: 'rgba(255,255,255,0.9)' },
 
-  actions: { padding: spacing.lg, gap: spacing.sm },
+  heroActions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  btnLight: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, height: 40, borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  btnLightText: { fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.primaryDark },
+  btnPrimary: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, height: 40, borderRadius: radius.full,
+    backgroundColor: colors.primary,
+  },
+  btnPrimaryText: { fontSize: font.size.sm, fontWeight: font.weight.bold, color: '#fff' },
 
   sectionTitle: {
     fontSize: font.size.lg, fontWeight: font.weight.heavy, color: colors.textMain,
